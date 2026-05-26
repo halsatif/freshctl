@@ -86,18 +86,21 @@ func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 
 func TestFullCatalogScrollsWithCursor(t *testing.T) {
 	model := Model{
-		screen:        screenCatalog,
-		width:         100,
-		height:        32,
-		categories:    catalog.Default(),
-		catalogMode:   catalogModeFull,
-		catalogCursor: 23,
-		catalogScroll: 8,
-		selected:      map[string]bool{},
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
 	}
 
+	items := model.filteredFullCatalogItems()
+	model.catalogCursor = len(items) - 1
+	model.ensureCatalogCursorVisible()
+
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "> [ ] iTunes") {
+	target := items[len(items)-1].Package.Name
+	if !strings.Contains(view, "> [ ] "+target) {
 		t.Fatalf("full catalog should render the highlighted item after scrolling, got:\n%s", view)
 	}
 	if strings.Contains(view, "Google Chrome") {
