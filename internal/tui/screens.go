@@ -63,10 +63,7 @@ func (m Model) viewCatalog() string {
 		appLines = append(appLines, line)
 	}
 
-	panelHeight := maxInt(len(categories), len(appLines))
-	if panelHeight < 6 {
-		panelHeight = 6
-	}
+	panelHeight := m.catalogPanelHeight()
 	left := borderStyle.Width(24).Height(panelHeight).Render(strings.Join(categories, "\n"))
 	right := borderStyle.Width(58).Height(panelHeight).Render(strings.Join(appLines, "\n"))
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
@@ -437,6 +434,17 @@ func (m Model) selectedInCategory(index int) int {
 		}
 	}
 	return count
+}
+
+func (m Model) catalogPanelHeight() int {
+	height := len(m.categories)
+	for _, category := range m.categories {
+		height = maxInt(height, len(category.Apps))
+	}
+	if height < 6 {
+		return 6
+	}
+	return height
 }
 
 func hotkeyBar(parts ...string) string {
