@@ -66,6 +66,7 @@ func (m Model) viewCatalog() string {
 	panelHeight := m.catalogPanelHeight()
 	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
 	itemLines = m.visibleCatalogLines(itemLines, panelHeight)
+	itemLines = fitCatalogListLines(itemLines, leftWidth)
 	left := borderStyle.Width(leftWidth).Height(panelHeight).Render(strings.Join(itemLines, "\n"))
 	right := borderStyle.Width(rightWidth).Height(panelHeight).Render(m.catalogDetailsPanel(rightWidth))
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
@@ -175,6 +176,18 @@ func (m Model) visibleCatalogLines(lines []string, height int) []string {
 	}
 	end := start + height
 	return lines[start:end]
+}
+
+func fitCatalogListLines(lines []string, width int) []string {
+	innerWidth := width - 4
+	if innerWidth < 12 {
+		innerWidth = 12
+	}
+	fitted := make([]string, len(lines))
+	for i, line := range lines {
+		fitted[i] = fitLine(line, innerWidth)
+	}
+	return fitted
 }
 
 func (m Model) catalogHeaderLine() string {

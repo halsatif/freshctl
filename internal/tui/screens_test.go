@@ -2,6 +2,7 @@ package tui
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -84,6 +85,25 @@ func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 	}
 }
 
+func TestFullCatalogItemsAreSortedByName(t *testing.T) {
+	model := Model{
+		categories: catalog.Default(),
+	}
+
+	items := model.allCatalogItems()
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, strings.ToLower(item.Package.Name))
+	}
+
+	sorted := append([]string{}, names...)
+	sort.Strings(sorted)
+
+	if strings.Join(names, "\n") != strings.Join(sorted, "\n") {
+		t.Fatalf("full catalog items should be sorted alphabetically")
+	}
+}
+
 func TestFullCatalogScrollsWithCursor(t *testing.T) {
 	model := Model{
 		screen:      screenCatalog,
@@ -105,6 +125,33 @@ func TestFullCatalogScrollsWithCursor(t *testing.T) {
 	}
 	if strings.Contains(view, "Google Chrome") {
 		t.Fatalf("full catalog should scroll past first-page items, got:\n%s", view)
+	}
+}
+
+func TestFullCatalogTruncatesLongNamesInsidePane(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+	}
+
+	for i, item := range model.filteredFullCatalogItems() {
+		if item.Package.PackageID == "vcredist140" {
+			model.catalogCursor = i
+			break
+		}
+	}
+	model.ensureCatalogCursorVisible()
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "\nx86/x64") {
+		t.Fatalf("long package names should not wrap into a stray line, got:\n%s", view)
+	}
+	if !strings.Contains(view, "VC++ Redist 2015-2026 x86/x64") {
+		t.Fatalf("expected long highlighted package to remain visible, got:\n%s", view)
 	}
 }
 

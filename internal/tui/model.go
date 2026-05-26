@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -804,6 +805,14 @@ type fullCatalogItem struct {
 func (m Model) allCatalogItems() []fullCatalogItem {
 	items := make([]fullCatalogItem, 0)
 	collectCatalogItems(m.categories, nil, &items)
+	sort.SliceStable(items, func(i, j int) bool {
+		left := strings.ToLower(items[i].Package.Name)
+		right := strings.ToLower(items[j].Package.Name)
+		if left == right {
+			return items[i].Package.PackageID < items[j].Package.PackageID
+		}
+		return left < right
+	})
 	return items
 }
 
