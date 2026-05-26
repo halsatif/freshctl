@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="freshctl is a Windows bootstrap utility for installing apps from a clean terminal interface."
+    />
+    <title>freshctl - windows bootstrap utility</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a class="brand" href="#top">freshctl</a>
+        <div class="nav-links">
+          <a href="#packages" data-open-packages>Packages</a>
+          <a href="#install" data-spotlight-install>Install</a>
+          <a href="https://github.com/halsatif/freshctl">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero section">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">windows bootstrap utility</p>
+            <h1>freshctl</h1>
+            <p class="lead">Install apps from a clean terminal interface.</p>
+
+            <div class="command-card" id="install" data-install-card>
+              <div class="command-label">install</div>
+              <div class="command-row">
+                <code>irm https://freshctl.tech/install.ps1 | iex</code>
+                <button class="copy-button" type="button" data-copy="irm https://freshctl.tech/install.ps1 | iex">
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div class="actions" aria-label="Project links">
+              <a class="button primary" href="https://github.com/halsatif/freshctl">GitHub</a>
+              <a class="button" href="https://github.com/halsatif/freshctl/releases">Download</a>
+              <a class="button" href="#packages" data-open-packages>View Packages</a>
+            </div>
+          </div>
+
+          <div class="terminal-mockup" aria-label="freshctl terminal interface preview">
+            <div class="terminal-titlebar">
+              <span>freshctl.exe</span>
+              <span class="terminal-dots" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </span>
+            </div>
+            <pre><code>freshctl
+0 selected
+Mode: Full catalog
+
++----------------------------+  +-------------------------+
+| &gt; [ ] 7-Zip                |  | Package:                |
+|   [ ] Bitwarden            |  | 7zip                    |
+|   [ ] Brave Browser        |  |                         |
+|   [ ] Discord              |  | Manager:                |
+|   [ ] Docker Desktop       |  | Chocolatey              |
+|   [ ] Git                  |  |                         |
+|   [ ] Google Chrome        |  | Description:            |
+|   [ ] Node.js LTS          |  | File archiver with      |
+|   [ ] PowerShell 7         |  | broad format support.   |
++----------------------------+  +-------------------------+
+
+ up/down | / search | space select | i install</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section screenshot-section" aria-labelledby="screenshot-title">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">terminal native</p>
+            <h2 id="screenshot-title">Browse, select, install.</h2>
+          </div>
+          <div class="wide-terminal" role="img" aria-label="Mockup of freshctl category browser">
+            <div class="terminal-titlebar">
+              <span>Administrator: freshctl.exe</span>
+              <span class="terminal-dots" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </span>
+            </div>
+            <pre><code>freshctl
+3 selected
+Path: Development &gt; Runtimes
+
++------------------------------+  +------------------------------+
+| &gt; .NET &gt;                     |  | .NET                         |
+|   Java &gt;                     |  |                              |
+|   Node.js &gt;                  |  | .NET runtimes and SDKs       |
+|   Python &gt;                   |  | for building and running     |
+|   Toolchains &gt;               |  | applications.                |
+|   VC++ Redistributables &gt;    |  |                              |
+|                              |  | Contains:                    |
+|                              |  | - .NET Runtime 10            |
+|                              |  | - .NET SDK 10                |
++------------------------------+  +------------------------------+
+
+ up/down | enter open | space select | esc back | i install</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="packages" aria-labelledby="features-title">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">what it does</p>
+            <h2 id="features-title">Small surface area. Useful defaults.</h2>
+          </div>
+
+          <div class="feature-grid">
+            <div class="feature">
+              <h3>category browser</h3>
+              <p>Move through grouped packages with a file-manager style catalog.</p>
+            </div>
+            <div class="feature">
+              <h3>full catalog search</h3>
+              <p>Search every package by name, id, description, or path.</p>
+            </div>
+            <div class="feature">
+              <h3>chocolatey bootstrap</h3>
+              <p>Checks for Chocolatey and can bootstrap it before installing apps.</p>
+            </div>
+            <div class="feature">
+              <h3>package selection</h3>
+              <p>Select packages first, review exact commands, then install.</p>
+            </div>
+            <div class="feature">
+              <h3>fresh windows setup</h3>
+              <p>Useful for clean Windows installs where the same tools come back every time.</p>
+            </div>
+            <div class="feature">
+              <h3>terminal-native interface</h3>
+              <p>No account, no dashboard, no background service. Just a TUI.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section commands" aria-labelledby="commands-title">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">install</p>
+            <h2 id="commands-title">Run it from PowerShell.</h2>
+          </div>
+
+          <div class="code-block">
+            <div class="code-label">powershell</div>
+            <div class="command-row">
+              <code>irm https://freshctl.tech/install.ps1 | iex</code>
+              <button class="copy-button" type="button" data-copy="irm https://freshctl.tech/install.ps1 | iex">
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-inner">
+        <a href="https://github.com/halsatif/freshctl">github</a>
+        <span>freshctl.tech</span>
+        <span>windows-only for now</span>
+      </div>
+    </footer>
+
+    <div class="install-spotlight" data-close-install-spotlight></div>
+
+    <div class="package-modal" id="package-modal" aria-hidden="true">
+      <div class="package-backdrop" data-close-packages></div>
+      <section class="package-dialog" role="dialog" aria-modal="true" aria-labelledby="package-dialog-title">
+        <div class="package-dialog-header">
+          <div>
+            <p class="eyebrow">catalog</p>
+            <h2 id="package-dialog-title">packages</h2>
+          </div>
+          <button class="modal-close" type="button" data-close-packages>Close</button>
+        </div>
+        <label class="package-search">
+			<span>search packages</span>
+			<input id="package-search" type="search" autocomplete="off" placeholder="name or chocolatey id" />
+		</label>
+
+		<p class="package-count" id="package-count"></p>
+
+		<div class="package-list" id="package-list"></div>
+
+		<p class="package-note">
+			package categories and descriptions may be AI-generated and can occasionally be inaccurate.
+		</p>
+
+    <script src="script.js"></script>
+  </body>
+</html>
