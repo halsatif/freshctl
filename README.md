@@ -1,33 +1,42 @@
 # freshctl
 
-freshctl is a Windows-first terminal installer for setting up a fresh machine without clicking through a pile of installers.
+![windows](https://img.shields.io/badge/platform-windows-0A84FF?style=flat-square)
+![go](https://img.shields.io/badge/built%20with-go-00ADD8?style=flat-square&logo=go)
+![license](https://img.shields.io/badge/license-MIT-8b5cf6?style=flat-square)
 
-It shows a small app catalog, lets you choose what to install, then runs real Chocolatey installs after you confirm the review screen. It is an MVP CLI/TUI version of a Ninite-like workflow.
+windows bootstrap utility
 
-## Catalog Navigation
+Install apps from a clean terminal interface.
 
-After the welcome screen, choose how to browse the catalog:
+---
 
-- Full catalog with search: all apps in one flat list. Press `/` to search.
-- Categories: nested folders grouped by purpose.
+## Screenshot
 
-The category catalog uses nested folders so larger groups stay tidy. Categories open like a small terminal file explorer.
+![freshctl screenshot](./assets/screenshot.png)
 
-- `up` / `down` or `k` / `j`: move selection
-- `enter`: open category
-- `esc` / `backspace` / `h`: go back
-- `space`: select or unselect an app
-- `i`: open the review/install screen
-- `/`: focus search
-- `q` / `ctrl+c`: quit
+---
 
-## Requirements
+## Features
 
-- Windows
-- Go
-- Chocolatey
+- full catalog search
+- category browser
+- chocolatey bootstrap
+- package selection
+- terminal-native tui
+- fast setup for fresh Windows installs
+- clean minimal interface
 
-Administrator privileges are required for Chocolatey bootstrap and package installation. If freshctl needs elevation, it relaunches through Windows UAC.
+---
+
+## Install
+
+PowerShell:
+
+```powershell
+irm https://freshctl.tech/install.ps1 | iex
+```
+
+---
 
 ## Build
 
@@ -36,32 +45,83 @@ go mod tidy
 go build -o freshctl.exe .
 ```
 
+---
+
 ## Run
 
 ```powershell
 .\freshctl.exe
 ```
 
-## Chocolatey Bootstrap
+---
 
-freshctl currently uses Chocolatey as its primary package manager. On startup, freshctl checks whether `choco` is available.
+## Requirements
 
-If Chocolatey is missing, freshctl shows a bootstrap screen. Pressing `enter` runs Chocolatey's official PowerShell bootstrap command from:
+- Windows 10/11
+- PowerShell
+- Administrator privileges may be required
+- Internet connection
 
-```text
-https://community.chocolatey.org/install.ps1
-```
+---
 
-Bootstrap output is shown in the TUI. When bootstrap finishes, freshctl automatically checks for `choco` again. If bootstrap fails, run freshctl as Administrator and try again, or install Chocolatey manually from the official Chocolatey documentation.
+## Package Source
 
-If freshctl is not already running with administrator privileges when Chocolatey bootstrap is needed, it shows an elevation screen first. Press `enter` there to relaunch freshctl as administrator through Windows UAC.
+Currently supported:
 
-If `C:\ProgramData\chocolatey` exists but `C:\ProgramData\chocolatey\bin\choco.exe` is missing, freshctl treats it as a broken partial install. It will not rerun bootstrap until that folder is removed from the repair screen.
+- Chocolatey
 
-## Install Logs
+---
 
-The install screen shows compact progress by default: current app, command, and a per-app summary. Logs are hidden by default; press `l` to toggle full logs. Press `s` to skip the current app and continue with the next selected app. Each package install has a 30 minute timeout as a last-resort guard.
+## Included Packages
 
-## Warning
+freshctl currently includes packages for:
 
-freshctl uses Chocolatey and installs real apps on your machine. Review the commands shown in the app before starting installation.
+- browsers
+- development tools
+- runtimes
+- terminals
+- media tools
+- gaming utilities
+- networking
+- virtualization
+- productivity
+- privacy & security
+
+Examples:
+
+- Google Chrome
+- Firefox
+- VSCode
+- Git
+- Docker Desktop
+- Python
+- Node.js
+- OBS Studio
+- Discord
+- Steam
+- Tailscale
+- PowerToys
+- ShareX
+- qBittorrent
+- VirtualBox
+
+---
+
+## Roadmap
+
+Planned features:
+
+- presets
+- package metadata
+- custom installers
+- auto-update
+- package filtering
+- improved install progress ui
+
+---
+
+## License
+
+MIT License
+
+See [LICENSE](./LICENSE).
