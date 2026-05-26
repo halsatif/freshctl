@@ -4,6 +4,23 @@ freshctl is a Windows-first terminal installer for setting up a fresh machine wi
 
 It shows a small app catalog, lets you choose what to install, then runs real Chocolatey installs after you confirm the review screen. It is an MVP CLI/TUI version of a Ninite-like workflow.
 
+## Catalog Navigation
+
+After the welcome screen, choose how to browse the catalog:
+
+- Full catalog with search: all apps in one flat list. Press `/` to search.
+- Categories: nested folders grouped by purpose.
+
+The category catalog uses nested folders so larger groups stay tidy. Categories open like a small terminal file explorer.
+
+- `up` / `down` or `k` / `j`: move selection
+- `enter`: open category
+- `esc` / `backspace` / `h`: go back
+- `space`: select or unselect an app
+- `i`: open the review/install screen
+- `/`: focus search
+- `q` / `ctrl+c`: quit
+
 ## Requirements
 
 - Windows

@@ -14,6 +14,7 @@ type screen int
 
 const (
 	screenWelcome screen = iota
+	screenModeSelect
 	screenCatalog
 	screenReview
 	screenInstall
@@ -22,11 +23,11 @@ const (
 	screenBrokenChocolatey
 )
 
-type focus int
+type catalogMode int
 
 const (
-	focusCategories focus = iota
-	focusApps
+	catalogModeFull catalogMode = iota
+	catalogModeCategories
 )
 
 type Model struct {
@@ -35,24 +36,28 @@ type Model struct {
 	width  int
 	height int
 
-	categories     []catalog.Category
-	categoryCursor int
-	appCursor      int
-	focus          focus
-	selected       map[string]bool
-	notice         string
+	categories    []catalog.Category
+	catalogPath   []int
+	catalogCursor int
+	catalogScroll int
+	modeCursor    int
+	catalogMode   catalogMode
+	searchFocused bool
+	searchQuery   string
+	selected      map[string]bool
+	notice        string
 
 	installEvents chan installer.Event
 	skipInstall   chan struct{}
 	cancelInstall context.CancelFunc
-	installApps   []catalog.App
+	installApps   []catalog.Package
 	installLog    []string
 	fullLog       []string
 	showFullLog   bool
 	results       []installer.Result
 	appStatus     map[string]string
 	appElapsed    map[string]time.Duration
-	currentApp    catalog.App
+	currentApp    catalog.Package
 	currentStep   int
 	currentCmd    string
 	currentStart  time.Time
@@ -122,7 +127,6 @@ func NewModel(args []string) Model {
 	return Model{
 		screen:        initialScreen,
 		categories:    catalog.Default(),
-		focus:         focusApps,
 		selected:      selected,
 		bootstrapBack: screenWelcome,
 		bootstrapLog:  bootstrapLog,
@@ -163,6 +167,8 @@ func (m Model) View() string {
 	switch m.screen {
 	case screenWelcome:
 		return m.viewWelcome()
+	case screenModeSelect:
+		return m.viewModeSelect()
 	case screenCatalog:
 		return m.viewCatalog()
 	case screenReview:
@@ -195,8 +201,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case screenWelcome:
 		if msg.String() == "enter" {
-			m.screen = screenCatalog
+			m.screen = screenModeSelect
+			return m, tea.ClearScreen
 		}
+	case screenModeSelect:
+		return m.handleModeSelectKey(msg)
 	case screenCatalog:
 		return m.handleCatalogKey(msg)
 	case screenReview:
@@ -214,43 +223,100 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleModeSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k", "down", "j":
+		if m.modeCursor == 0 {
+			m.modeCursor = 1
+		} else {
+			m.modeCursor = 0
+		}
+	case "enter":
+		if m.modeCursor == 0 {
+			m.catalogMode = catalogModeFull
+			m.searchFocused = false
+			m.searchQuery = ""
+		} else {
+			m.catalogMode = catalogModeCategories
+			m.searchFocused = false
+			m.searchQuery = ""
+		}
+		m.catalogCursor = 0
+		m.catalogScroll = 0
+		m.catalogPath = nil
+		m.notice = ""
+		m.screen = screenCatalog
+		return m, tea.ClearScreen
+	}
+	return m, nil
+}
+
 func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.notice = ""
 
+	if m.searchFocused {
+		switch msg.String() {
+		case "enter":
+			m.searchFocused = false
+		case "esc":
+			m.searchFocused = false
+			if m.catalogMode == catalogModeFull {
+				m.searchQuery = ""
+				m.catalogCursor = 0
+				m.catalogScroll = 0
+			}
+		case "backspace":
+			if len(m.searchQuery) > 0 {
+				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				m.clampCatalogCursor()
+				m.ensureCatalogCursorVisible()
+			}
+		default:
+			if len(msg.Runes) > 0 {
+				m.searchQuery += string(msg.Runes)
+				m.clampCatalogCursor()
+				m.ensureCatalogCursorVisible()
+			}
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "tab":
-		if m.focus == focusCategories {
-			m.focus = focusApps
-		} else {
-			m.focus = focusCategories
-		}
+		return m, nil
 	case "up", "k":
-		if m.focus == focusCategories && m.categoryCursor > 0 {
-			m.categoryCursor--
-			m.appCursor = 0
-		} else if m.focus == focusApps && m.appCursor > 0 {
-			m.appCursor--
-		}
+		m.moveCatalogCursor(-1)
 	case "down", "j":
-		if m.focus == focusCategories && m.categoryCursor < len(m.categories)-1 {
-			m.categoryCursor++
-			m.appCursor = 0
-		} else if m.focus == focusApps && m.appCursor < len(m.currentApps())-1 {
-			m.appCursor++
+		m.moveCatalogCursor(1)
+	case "esc", "backspace", "h":
+		if m.catalogMode == catalogModeFull {
+			m.screen = screenModeSelect
+			m.searchFocused = false
+			m.searchQuery = ""
+			m.catalogCursor = 0
+			m.catalogScroll = 0
+			return m, tea.ClearScreen
 		}
+		m.goBackInCatalog()
+		if len(m.catalogPath) == 0 {
+			m.screen = screenModeSelect
+		}
+		return m, tea.ClearScreen
 	case " ":
-		apps := m.currentApps()
-		if len(apps) == 0 {
-			return m, nil
-		}
-		if m.focus == focusCategories {
-			m.toggleCurrentCategory()
-			return m, nil
-		}
-		app := apps[m.appCursor]
-		m.selected[app.ID] = !m.selected[app.ID]
+		m.toggleCurrentApp()
 	case "enter":
+		if m.catalogMode == catalogModeCategories {
+			m.openCurrentCategory()
+			return m, tea.ClearScreen
+		}
+	case "i":
 		m.screen = screenReview
+		return m, tea.ClearScreen
+	case "/":
+		m.searchFocused = true
+		m.searchQuery = ""
+		m.catalogCursor = 0
+		m.catalogScroll = 0
 	}
 
 	return m, nil
@@ -261,6 +327,7 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "b", "esc":
 		m.notice = ""
 		m.screen = screenCatalog
+		return m, tea.ClearScreen
 	case "enter":
 		apps := m.selectedApps()
 		if len(apps) == 0 {
@@ -408,27 +475,27 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		m.currentCmd = event.Line
 		m.currentStep = m.installIndex(event.App) + 1
 		m.currentStart = time.Now()
-		m.appStatus[event.App.ID] = "installing"
+		m.appStatus[event.App.PackageID] = "installing"
 		m.installLog = append(m.installLog, "installing "+event.App.Name)
 		m.fullLog = append(m.fullLog, "> "+event.Line)
 	case installer.EventAppFinished:
-		if !m.currentStart.IsZero() && m.currentApp.ID == event.App.ID {
-			m.appElapsed[event.App.ID] = time.Since(m.currentStart)
+		if !m.currentStart.IsZero() && m.currentApp.PackageID == event.App.PackageID {
+			m.appElapsed[event.App.PackageID] = time.Since(m.currentStart)
 		}
 		if event.Success {
-			m.appStatus[event.App.ID] = "installed"
+			m.appStatus[event.App.PackageID] = "installed"
 			m.installLog = append(m.installLog, "success "+event.App.Name)
 			m.fullLog = append(m.fullLog, "ok: "+event.App.Name)
 		} else if event.Err == installer.ErrInstallSkipped {
-			m.appStatus[event.App.ID] = "skipped"
+			m.appStatus[event.App.PackageID] = "skipped"
 			m.installLog = append(m.installLog, "skipped "+event.App.Name)
 			m.fullLog = append(m.fullLog, "skipped: "+event.App.Name)
 		} else if event.Err == context.DeadlineExceeded {
-			m.appStatus[event.App.ID] = "failed"
+			m.appStatus[event.App.PackageID] = "failed"
 			m.installLog = append(m.installLog, "timed out "+event.App.Name)
 			m.fullLog = append(m.fullLog, "timed out: "+event.App.Name)
 		} else {
-			m.appStatus[event.App.ID] = "failed"
+			m.appStatus[event.App.PackageID] = "failed"
 			m.installLog = append(m.installLog, "failed "+event.App.Name+" - "+event.Err.Error())
 			m.fullLog = append(m.fullLog, "failed: "+event.App.Name+" - "+event.Err.Error())
 		}
@@ -521,10 +588,10 @@ func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showFullLog = !m.showFullLog
 		return m, tea.ClearScreen
 	case "s":
-		if !m.installDone && m.skipInstall != nil && m.currentApp.ID != "" {
+		if !m.installDone && m.skipInstall != nil && m.currentApp.PackageID != "" {
 			m.installLog = append(m.installLog, "skipping "+m.currentApp.Name+"...")
 			m.fullLog = append(m.fullLog, "skip requested for "+m.currentApp.Name)
-			m.appStatus[m.currentApp.ID] = "skipping"
+			m.appStatus[m.currentApp.PackageID] = "skipping"
 			select {
 			case m.skipInstall <- struct{}{}:
 			default:
@@ -545,7 +612,7 @@ func (m Model) handleInstallTick() (tea.Model, tea.Cmd) {
 	return m, installTickCmd()
 }
 
-func (m Model) startInstall(apps []catalog.App) (tea.Model, tea.Cmd) {
+func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.screen = screenInstall
 	m.installApps = apps
 	m.installLog = nil
@@ -555,9 +622,9 @@ func (m Model) startInstall(apps []catalog.App) (tea.Model, tea.Cmd) {
 	m.appStatus = make(map[string]string, len(apps))
 	m.appElapsed = make(map[string]time.Duration, len(apps))
 	for _, app := range apps {
-		m.appStatus[app.ID] = "pending"
+		m.appStatus[app.PackageID] = "pending"
 	}
-	m.currentApp = catalog.App{}
+	m.currentApp = catalog.Package{}
 	m.currentStep = 0
 	m.currentCmd = ""
 	m.currentStart = time.Time{}
@@ -570,42 +637,226 @@ func (m Model) startInstall(apps []catalog.App) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(tea.ClearScreen, startInstallCmd(ctx, apps, m.installEvents, m.skipInstall), installTickCmd())
 }
 
-func (m Model) currentApps() []catalog.App {
-	if len(m.categories) == 0 {
-		return nil
-	}
-	return m.categories[m.categoryCursor].Apps
+func (m Model) currentApps() []catalog.Package {
+	return m.currentNode().Apps
 }
 
-func (m Model) toggleCurrentCategory() {
-	apps := m.currentApps()
-	if len(apps) == 0 {
+func (m Model) currentCategories() []catalog.Category {
+	return m.currentNode().Categories
+}
+
+func (m Model) currentNode() catalog.Category {
+	node := catalog.Category{Categories: m.categories}
+	for _, index := range m.catalogPath {
+		if index < 0 || index >= len(node.Categories) {
+			return catalog.Category{Categories: m.categories}
+		}
+		node = node.Categories[index]
+	}
+	return node
+}
+
+func (m Model) currentBreadcrumb() string {
+	if len(m.catalogPath) == 0 {
+		return "Catalog"
+	}
+
+	names := make([]string, 0, len(m.catalogPath))
+	node := catalog.Category{Categories: m.categories}
+	for _, index := range m.catalogPath {
+		if index < 0 || index >= len(node.Categories) {
+			break
+		}
+		node = node.Categories[index]
+		names = append(names, node.Name)
+	}
+	if len(names) == 0 {
+		return "Catalog"
+	}
+	return strings.Join(names, " > ")
+}
+
+func (m *Model) moveCatalogCursor(delta int) {
+	count := m.catalogItemCount()
+	if count == 0 {
+		m.catalogCursor = 0
 		return
 	}
 
-	allSelected := true
-	for _, app := range apps {
-		if !m.selected[app.ID] {
-			allSelected = false
-			break
-		}
+	m.catalogCursor += delta
+	if m.catalogCursor < 0 {
+		m.catalogCursor = 0
+	}
+	if m.catalogCursor >= count {
+		m.catalogCursor = count - 1
+	}
+	m.ensureCatalogCursorVisible()
+}
+
+func (m *Model) openCurrentCategory() {
+	categories := m.currentCategories()
+	if m.catalogCursor >= len(categories) {
+		return
+	}
+	m.catalogPath = append(m.catalogPath, m.catalogCursor)
+	m.catalogCursor = 0
+	m.catalogScroll = 0
+	m.searchFocused = false
+	m.searchQuery = ""
+}
+
+func (m *Model) goBackInCatalog() {
+	if len(m.catalogPath) == 0 {
+		return
+	}
+	m.catalogPath = m.catalogPath[:len(m.catalogPath)-1]
+	m.catalogCursor = 0
+	m.catalogScroll = 0
+	m.searchFocused = false
+	m.searchQuery = ""
+}
+
+func (m *Model) toggleCurrentApp() {
+	app, ok := m.currentPackageSelection()
+	if !ok {
+		return
 	}
 
-	for _, app := range apps {
-		m.selected[app.ID] = !allSelected
+	m.selected[app.PackageID] = !m.selected[app.PackageID]
+}
+
+func (m Model) catalogItemCount() int {
+	if m.catalogMode == catalogModeFull {
+		return len(m.filteredFullCatalogItems())
+	}
+	return len(m.currentCategories()) + len(m.currentApps())
+}
+
+func (m *Model) clampCatalogCursor() {
+	count := m.catalogItemCount()
+	if count == 0 {
+		m.catalogCursor = 0
+		return
+	}
+	if m.catalogCursor >= count {
+		m.catalogCursor = count - 1
+	}
+	if m.catalogCursor < 0 {
+		m.catalogCursor = 0
 	}
 }
 
-func (m Model) selectedApps() []catalog.App {
-	apps := make([]catalog.App, 0)
-	for _, category := range m.categories {
+func (m *Model) ensureCatalogCursorVisible() {
+	height := m.catalogVisibleRows()
+	if height <= 0 {
+		m.catalogScroll = 0
+		return
+	}
+
+	cursorLine := m.catalogCursor
+	if m.catalogMode == catalogModeFull {
+		cursorLine = m.catalogCursor
+	}
+	if cursorLine < m.catalogScroll {
+		m.catalogScroll = cursorLine
+	}
+	if cursorLine >= m.catalogScroll+height {
+		m.catalogScroll = cursorLine - height + 1
+	}
+	if m.catalogScroll < 0 {
+		m.catalogScroll = 0
+	}
+}
+
+func (m Model) catalogVisibleRows() int {
+	height := m.height - 14
+	if height < 6 {
+		return 6
+	}
+	if height > 16 {
+		return 16
+	}
+	return height
+}
+
+func (m Model) currentPackageSelection() (catalog.Package, bool) {
+	if m.catalogMode == catalogModeFull {
+		items := m.filteredFullCatalogItems()
+		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
+			return catalog.Package{}, false
+		}
+		return items[m.catalogCursor].Package, true
+	}
+
+	apps := m.currentApps()
+	appIndex := m.catalogCursor - len(m.currentCategories())
+	if appIndex < 0 || appIndex >= len(apps) {
+		return catalog.Package{}, false
+	}
+	return apps[appIndex], true
+}
+
+type fullCatalogItem struct {
+	Package catalog.Package
+	Path    string
+}
+
+func (m Model) allCatalogItems() []fullCatalogItem {
+	items := make([]fullCatalogItem, 0)
+	collectCatalogItems(m.categories, nil, &items)
+	return items
+}
+
+func collectCatalogItems(categories []catalog.Category, path []string, items *[]fullCatalogItem) {
+	for _, category := range categories {
+		nextPath := append(append([]string{}, path...), category.Name)
+		collectCatalogItems(category.Categories, nextPath, items)
 		for _, app := range category.Apps {
-			if m.selected[app.ID] {
-				apps = append(apps, app)
+			*items = append(*items, fullCatalogItem{
+				Package: app,
+				Path:    strings.Join(nextPath, " > "),
+			})
+		}
+	}
+}
+
+func (m Model) filteredFullCatalogItems() []fullCatalogItem {
+	items := m.allCatalogItems()
+	query := strings.TrimSpace(strings.ToLower(m.searchQuery))
+	if query == "" {
+		return items
+	}
+
+	filtered := make([]fullCatalogItem, 0, len(items))
+	for _, item := range items {
+		haystack := strings.ToLower(strings.Join([]string{
+			item.Package.Name,
+			item.Package.PackageID,
+			item.Package.Description,
+			item.Path,
+		}, " "))
+		if strings.Contains(haystack, query) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func (m Model) selectedApps() []catalog.Package {
+	apps := make([]catalog.Package, 0)
+	m.collectSelectedApps(m.categories, &apps)
+	return apps
+}
+
+func (m Model) collectSelectedApps(categories []catalog.Category, apps *[]catalog.Package) {
+	for _, category := range categories {
+		m.collectSelectedApps(category.Categories, apps)
+		for _, app := range category.Apps {
+			if m.selected[app.PackageID] {
+				*apps = append(*apps, app)
 			}
 		}
 	}
-	return apps
 }
 
 func (m Model) selectedArgs() []string {
@@ -616,9 +867,13 @@ func (m Model) selectedArgs() []string {
 
 	ids := make([]string, 0, len(selected))
 	for _, app := range selected {
-		ids = append(ids, app.ID)
+		ids = append(ids, app.PackageID)
 	}
-	return []string{"--selected=" + strings.Join(ids, ",")}
+	args := make([]string, 0, 2)
+	if len(ids) > 0 {
+		args = append(args, "--selected="+strings.Join(ids, ","))
+	}
+	return args
 }
 
 func selectedFromArgs(args []string) map[string]bool {
@@ -638,16 +893,16 @@ func selectedFromArgs(args []string) map[string]bool {
 	return nil
 }
 
-func (m Model) installIndex(app catalog.App) int {
+func (m Model) installIndex(app catalog.Package) int {
 	for i, candidate := range m.installApps {
-		if candidate.ID == app.ID {
+		if candidate.PackageID == app.PackageID {
 			return i
 		}
 	}
 	return 0
 }
 
-func startInstallCmd(ctx context.Context, apps []catalog.App, events chan installer.Event, skips <-chan struct{}) tea.Cmd {
+func startInstallCmd(ctx context.Context, apps []catalog.Package, events chan installer.Event, skips <-chan struct{}) tea.Cmd {
 	return func() tea.Msg {
 		go installer.InstallApps(ctx, apps, events, skips)
 		event, ok := <-events

@@ -11,9 +11,18 @@ var (
 			Foreground(lipgloss.Color("245"))
 
 	borderStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(0, 1)
+			Border(lipgloss.Border{
+			Top:         "-",
+			Bottom:      "-",
+			Left:        "|",
+			Right:       "|",
+			TopLeft:     "+",
+			TopRight:    "+",
+			BottomLeft:  "+",
+			BottomRight: "+",
+		}).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1)
 
 	activeItemStyle = lipgloss.NewStyle().
 			Bold(true).

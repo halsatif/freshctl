@@ -37,7 +37,7 @@ const (
 
 type Event struct {
 	Kind    EventKind
-	App     catalog.App
+	App     catalog.Package
 	Line    string
 	Success bool
 	Err     error
@@ -45,7 +45,7 @@ type Event struct {
 }
 
 type Result struct {
-	App     catalog.App
+	App     catalog.Package
 	Success bool
 	Skipped bool
 	Err     error
@@ -65,7 +65,7 @@ type BootstrapEvent struct {
 	Err   error
 }
 
-func CommandFor(app catalog.App) string {
+func CommandFor(app catalog.Package) string {
 	args := installArgs(app)
 	return "choco " + strings.Join(args, " ")
 }
@@ -126,7 +126,7 @@ func RelaunchElevated(args []string) error {
 	return exec.Command("powershell.exe", "-NoProfile", "-Command", script).Run()
 }
 
-func InstallApps(ctx context.Context, apps []catalog.App, events chan<- Event, skips <-chan struct{}) {
+func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Event, skips <-chan struct{}) {
 	defer close(events)
 
 	if len(apps) == 0 {
@@ -229,7 +229,7 @@ func BootstrapPackageManager(ctx context.Context, events chan<- BootstrapEvent) 
 	}
 }
 
-func installOneWithSkip(ctx context.Context, app catalog.App, events chan<- Event, skips <-chan struct{}) error {
+func installOneWithSkip(ctx context.Context, app catalog.Package, events chan<- Event, skips <-chan struct{}) error {
 	appCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
@@ -256,8 +256,8 @@ func installOneWithSkip(ctx context.Context, app catalog.App, events chan<- Even
 	}
 }
 
-func installOne(ctx context.Context, app catalog.App, events chan<- Event) error {
-	cmd := exec.CommandContext(ctx, chocoPath(), installArgs(app)[1:]...)
+func installOne(ctx context.Context, app catalog.Package, events chan<- Event) error {
+	cmd := exec.CommandContext(ctx, chocoPath(), installArgs(app)...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -286,8 +286,8 @@ func installOne(ctx context.Context, app catalog.App, events chan<- Event) error
 	return nil
 }
 
-func installArgs(app catalog.App) []string {
-	args := []string{"install", app.ID, "-y", "--no-progress"}
+func installArgs(app catalog.Package) []string {
+	args := []string{"install", app.PackageID, "-y", "--no-progress"}
 	if app.Prerelease {
 		args = append(args, "--pre")
 	}
@@ -334,7 +334,7 @@ func powerShellArray(values []string) string {
 	return "@(" + strings.Join(quoted, ",") + ")"
 }
 
-func scanOutput(wg *sync.WaitGroup, r io.Reader, app catalog.App, events chan<- Event) {
+func scanOutput(wg *sync.WaitGroup, r io.Reader, app catalog.Package, events chan<- Event) {
 	defer wg.Done()
 
 	scanner := bufio.NewScanner(r)

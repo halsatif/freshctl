@@ -25,61 +25,163 @@ func (m Model) viewWelcome() string {
 	return place(body, m.width, m.height)
 }
 
-func (m Model) viewCatalog() string {
-	categories := make([]string, 0, len(m.categories))
-	for i, category := range m.categories {
-		line := category.Name
-		if count := m.selectedInCategory(i); count > 0 {
-			line = fmt.Sprintf("%s (%d)", line, count)
+func (m Model) viewModeSelect() string {
+	options := []string{"Full catalog with search", "Categories"}
+	lines := []string{
+		titleStyle.Render("choose catalog mode"),
+		"",
+	}
+	for i, option := range options {
+		line := "  " + option
+		if i == m.modeCursor {
+			line = activeItemStyle.Render("> " + option)
 		}
-		if i == m.categoryCursor {
-			if m.focus == focusCategories {
-				line = activeItemStyle.Render("> " + line)
-			} else {
-				line = selectedStyle.Render("> " + line)
-			}
-		} else {
-			line = "  " + line
-		}
-		categories = append(categories, line)
+		lines = append(lines, line)
 	}
 
-	appLines := make([]string, 0, len(m.currentApps()))
-	for i, app := range m.currentApps() {
-		box := "[ ]"
-		if m.selected[app.ID] {
-			box = selectedStyle.Render("[x]")
-		}
-		line := fmt.Sprintf("%s %s", box, app.Name)
-		if i == m.appCursor {
-			if m.focus == focusApps {
-				line = activeItemStyle.Render("> " + line)
-			} else {
-				line = selectedStyle.Render("> " + line)
-			}
-		} else {
-			line = "  " + line
-		}
-		appLines = append(appLines, line)
+	lines = append(lines, "")
+	if m.modeCursor == 0 {
+		lines = append(lines,
+			"Full catalog with search:",
+			mutedStyle.Render("Browse all apps in one flat list. Best when you already know what you need."),
+		)
+	} else {
+		lines = append(lines,
+			"Categories:",
+			mutedStyle.Render("Browse apps grouped by purpose. Best for discovering tools."),
+		)
+	}
+
+	lines = append(lines, "", hotkeyBar("up/down move", "enter confirm", "q quit"))
+	return place(strings.Join(lines, "\n"), m.width, m.height)
+}
+
+func (m Model) viewCatalog() string {
+	contentWidth := pageWidth(m.width)
+	itemLines := m.catalogListLines()
+	if len(itemLines) == 0 {
+		itemLines = append(itemLines, "  "+mutedStyle.Render("No matches."))
 	}
 
 	panelHeight := m.catalogPanelHeight()
-	left := borderStyle.Width(24).Height(panelHeight).Render(strings.Join(categories, "\n"))
-	right := borderStyle.Width(58).Height(panelHeight).Render(strings.Join(appLines, "\n"))
+	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
+	itemLines = m.visibleCatalogLines(itemLines, panelHeight)
+	left := borderStyle.Width(leftWidth).Height(panelHeight).Render(strings.Join(itemLines, "\n"))
+	right := borderStyle.Width(rightWidth).Height(panelHeight).Render(m.catalogDetailsPanel(rightWidth))
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
+	if contentWidth < 72 {
+		content = strings.Join([]string{left, "", right}, "\n")
+	}
 
 	parts := []string{
 		titleStyle.Render("freshctl"),
 		mutedStyle.Render(fmt.Sprintf("%d selected", len(m.selectedApps()))),
+		mutedStyle.Render(m.catalogHeaderLine()),
+	}
+	if m.searchFocused {
+		query := m.searchQuery
+		if query == "" {
+			query = "type to search"
+		}
+		parts = append(parts, mutedStyle.Render("Search: "+query+" (placeholder)"))
+	}
+	parts = append(parts,
 		"",
 		content,
-	}
+	)
 	if m.notice != "" {
 		parts = append(parts, "", errorStyle.Render(m.notice))
 	}
-	parts = append(parts, "", hotkeyBar("up/down move", "tab focus", "space select", "enter review", "q quit"))
+	if m.catalogMode == catalogModeFull {
+		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "i install", "esc back/clear", "q quit"))
+	} else {
+		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "esc back", "i install", "q quit"))
+	}
 
 	return place(strings.Join(parts, "\n"), m.width, m.height)
+}
+
+func (m Model) catalogListLines() []string {
+	if m.catalogMode == catalogModeFull {
+		return m.fullCatalogListLines()
+	}
+	return m.categoryCatalogListLines()
+}
+
+func (m Model) categoryCatalogListLines() []string {
+	categories := m.currentCategories()
+	apps := m.currentApps()
+	itemLines := make([]string, 0, len(categories)+len(apps))
+
+	for i, category := range categories {
+		line := category.Name + " >"
+		if count := m.selectedInCategory(category); count > 0 {
+			line = fmt.Sprintf("%s (%d)", line, count)
+		}
+		if i == m.catalogCursor {
+			line = activeItemStyle.Render("> " + line)
+		} else {
+			line = "  " + line
+		}
+		itemLines = append(itemLines, line)
+	}
+
+	for i, app := range apps {
+		box := "[ ]"
+		if m.selected[app.PackageID] {
+			box = selectedStyle.Render("[x]")
+		}
+		line := fmt.Sprintf("%s %s", box, app.Name)
+		if len(categories)+i == m.catalogCursor {
+			line = activeItemStyle.Render("> " + line)
+		} else {
+			line = "  " + line
+		}
+		itemLines = append(itemLines, line)
+	}
+
+	return itemLines
+}
+
+func (m Model) fullCatalogListLines() []string {
+	items := m.filteredFullCatalogItems()
+	lines := make([]string, 0, len(items))
+	for i, item := range items {
+		box := "[ ]"
+		if m.selected[item.Package.PackageID] {
+			box = selectedStyle.Render("[x]")
+		}
+		line := fmt.Sprintf("%s %s", box, item.Package.Name)
+		if i == m.catalogCursor {
+			line = activeItemStyle.Render("> " + line)
+		} else {
+			line = "  " + line
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func (m Model) visibleCatalogLines(lines []string, height int) []string {
+	if height <= 0 || len(lines) <= height {
+		return lines
+	}
+	start := m.catalogScroll
+	if start < 0 {
+		start = 0
+	}
+	if start > len(lines)-height {
+		start = len(lines) - height
+	}
+	end := start + height
+	return lines[start:end]
+}
+
+func (m Model) catalogHeaderLine() string {
+	if m.catalogMode == catalogModeFull {
+		return "Mode: Full catalog"
+	}
+	return "Path: " + m.currentBreadcrumb()
 }
 
 func (m Model) viewReview() string {
@@ -93,7 +195,7 @@ func (m Model) viewReview() string {
 	} else {
 		lines = append(lines, "", "Selected apps:")
 		for _, app := range selected {
-			lines = append(lines, fmt.Sprintf("  - %s %s", app.Name, mutedStyle.Render(app.ID)))
+			lines = append(lines, fmt.Sprintf("  - %s %s", app.Name, mutedStyle.Render(app.PackageID)))
 		}
 
 		lines = append(lines, "", "Commands:")
@@ -281,7 +383,7 @@ func (m Model) installSummaryTable(width int) []string {
 	lines := make([]string, 0, len(m.installApps))
 	nameWidth := m.installNameWidth(width)
 	for _, app := range m.installApps {
-		status := m.appStatus[app.ID]
+		status := m.appStatus[app.PackageID]
 		if status == "" {
 			status = "pending"
 		}
@@ -314,11 +416,159 @@ func (m Model) installNameWidth(width int) int {
 	return maxName
 }
 
-func (m Model) elapsedForApp(app catalog.App) string {
-	if elapsed, ok := m.appElapsed[app.ID]; ok {
+func (m Model) catalogDetailsPanel(width int) string {
+	if m.catalogMode == catalogModeFull {
+		items := m.filteredFullCatalogItems()
+		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
+			return fitDetailsLines([]string{"No item selected."}, width)
+		}
+		item := items[m.catalogCursor]
+		selected := "No"
+		if m.selected[item.Package.PackageID] {
+			selected = "Yes"
+		}
+		return fitDetailsLines(packageDetailsLines(item.Package, selected), width)
+	}
+
+	categories := m.currentCategories()
+	if m.catalogCursor < len(categories) {
+		category := categories[m.catalogCursor]
+		return fitDetailsLines(categoryDetailsLines(category), width)
+	}
+
+	appIndex := m.catalogCursor - len(categories)
+	apps := m.currentApps()
+	if appIndex < 0 || appIndex >= len(apps) {
+		return fitDetailsLines([]string{"No item selected."}, width)
+	}
+
+	app := apps[appIndex]
+	selected := "No"
+	if m.selected[app.PackageID] {
+		selected = "Yes"
+	}
+	return fitDetailsLines(packageDetailsLines(app, selected), width)
+}
+
+func fitDetailsLines(lines []string, width int) string {
+	innerWidth := width - 2
+	if innerWidth < 12 {
+		innerWidth = 12
+	}
+	for i, line := range lines {
+		lines[i] = fitLine(line, innerWidth)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func catalogPaneWidths(contentWidth int) (int, int) {
+	if contentWidth < 72 {
+		width := contentWidth - 4
+		if width < 36 {
+			width = 36
+		}
+		return width, width
+	}
+
+	left := contentWidth / 2
+	if left > 42 {
+		left = 42
+	}
+	right := contentWidth - left - 6
+	if right < 30 {
+		right = 30
+	}
+	return left, right
+}
+
+func categoryDetailsLines(category catalog.Category) []string {
+	lines := []string{
+		category.Name,
+		"",
+	}
+	lines = append(lines, wrapText(category.Description, 28)...)
+	lines = append(lines, "", "Contains:")
+	items := categoryContents(category, 6)
+	if len(items) == 0 {
+		lines = append(lines, "- No packages yet")
+	} else {
+		for _, item := range items {
+			lines = append(lines, "- "+item)
+		}
+	}
+	return lines
+}
+
+func packageDetailsLines(app catalog.Package, selected string) []string {
+	lines := []string{
+		"Package:",
+		app.PackageID,
+		"",
+		"Manager:",
+		"Chocolatey",
+		"",
+		"Description:",
+	}
+	lines = append(lines, wrapText(app.Description, 28)...)
+	lines = append(lines, "", "Selected:", selected)
+	return lines
+}
+
+func categoryContents(category catalog.Category, limit int) []string {
+	items := make([]string, 0, limit)
+	for _, child := range category.Categories {
+		items = append(items, child.Name)
+		if len(items) >= limit {
+			return items
+		}
+	}
+	for _, app := range category.Apps {
+		items = append(items, app.Name)
+		if len(items) >= limit {
+			return items
+		}
+	}
+	return items
+}
+
+func wrapText(text string, width int) []string {
+	if text == "" {
+		return []string{"No description."}
+	}
+	if width < 12 {
+		width = 12
+	}
+
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{"No description."}
+	}
+
+	lines := []string{}
+	current := ""
+	for _, word := range words {
+		if current == "" {
+			current = word
+			continue
+		}
+		if ansi.StringWidth(current)+1+ansi.StringWidth(word) > width {
+			lines = append(lines, current)
+			current = word
+			continue
+		}
+		current += " " + word
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	return lines
+}
+
+func (m Model) elapsedForApp(app catalog.Package) string {
+	if elapsed, ok := m.appElapsed[app.PackageID]; ok {
 		return formatElapsed(elapsed)
 	}
-	if m.currentApp.ID == app.ID && !m.currentStart.IsZero() && !m.installDone {
+	if m.currentApp.PackageID == app.PackageID && !m.currentStart.IsZero() && !m.installDone {
 		return formatElapsed(time.Since(m.currentStart))
 	}
 	return "--:--"
@@ -329,7 +579,7 @@ func (m Model) installDoneMessage() string {
 	skipped := 0
 	installed := 0
 	for _, app := range m.installApps {
-		switch m.appStatus[app.ID] {
+		switch m.appStatus[app.PackageID] {
 		case "installed":
 			installed++
 		case "failed":
@@ -422,14 +672,13 @@ func sanitizeLogLine(line string) string {
 	return line
 }
 
-func (m Model) selectedInCategory(index int) int {
-	if index < 0 || index >= len(m.categories) {
-		return 0
-	}
-
+func (m Model) selectedInCategory(category catalog.Category) int {
 	count := 0
-	for _, app := range m.categories[index].Apps {
-		if m.selected[app.ID] {
+	for _, child := range category.Categories {
+		count += m.selectedInCategory(child)
+	}
+	for _, app := range category.Apps {
+		if m.selected[app.PackageID] {
 			count++
 		}
 	}
@@ -437,12 +686,31 @@ func (m Model) selectedInCategory(index int) int {
 }
 
 func (m Model) catalogPanelHeight() int {
-	height := len(m.categories)
-	for _, category := range m.categories {
-		height = maxInt(height, len(category.Apps))
+	height := m.catalogVisibleRows()
+	height = maxInt(height, maxCatalogDetailsHeight(m.categories))
+	if height > 18 {
+		return 18
 	}
-	if height < 6 {
-		return 6
+	return height
+}
+
+func maxCatalogPanelHeight(categories []catalog.Category) int {
+	height := len(categories)
+	for _, category := range categories {
+		height = maxInt(height, len(category.Categories)+len(category.Apps))
+		height = maxInt(height, maxCatalogPanelHeight(category.Categories))
+	}
+	return height
+}
+
+func maxCatalogDetailsHeight(categories []catalog.Category) int {
+	height := 0
+	for _, category := range categories {
+		height = maxInt(height, len(categoryDetailsLines(category)))
+		for _, app := range category.Apps {
+			height = maxInt(height, len(packageDetailsLines(app, "No")))
+		}
+		height = maxInt(height, maxCatalogDetailsHeight(category.Categories))
 	}
 	return height
 }
