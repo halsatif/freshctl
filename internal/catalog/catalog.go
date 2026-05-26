@@ -1,8 +1,9 @@
 package catalog
 
 type App struct {
-	Name string
-	ID   string
+	Name       string
+	ID         string
+	Prerelease bool
 }
 
 type Category struct {
@@ -16,8 +17,17 @@ func Default() []Category {
 			Name: "browsers",
 			Apps: []App{
 				{Name: "Google Chrome", ID: "googlechrome"},
+				{Name: "Opera", ID: "opera"},
+				{Name: "Opera GX", ID: "opera-gx"},
 				{Name: "Mozilla Firefox", ID: "firefox"},
+				{Name: "Waterfox", ID: "waterfox"},
+				{Name: "Microsoft Edge", ID: "microsoft-edge"},
 				{Name: "Brave Browser", ID: "brave"},
+				{Name: "Vivaldi", ID: "vivaldi"},
+				{Name: "Yandex Browser", ID: "yandex-browser"},
+				{Name: "Tor Browser", ID: "tor-browser"},
+				{Name: "LibreWolf", ID: "librewolf"},
+				{Name: "Zen Browser", ID: "zen-browser", Prerelease: true},
 			},
 		},
 		{
@@ -46,7 +56,7 @@ func Default() []Category {
 		{
 			Name: "utilities",
 			Apps: []App{
-				{Name: "7-zip", ID: "7zip"},
+				{Name: "7-Zip", ID: "7zip"},
 				{Name: "PowerToys", ID: "powertoys"},
 				{Name: "Everything", ID: "everything"},
 			},

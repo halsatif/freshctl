@@ -50,7 +50,7 @@ func (m Model) viewCatalog() string {
 		if m.selected[app.ID] {
 			box = selectedStyle.Render("[x]")
 		}
-		line := fmt.Sprintf("%s %s %s", box, app.Name, mutedStyle.Render(app.ID))
+		line := fmt.Sprintf("%s %s", box, app.Name)
 		if i == m.appCursor {
 			if m.focus == focusApps {
 				line = activeItemStyle.Render("> " + line)
@@ -63,8 +63,12 @@ func (m Model) viewCatalog() string {
 		appLines = append(appLines, line)
 	}
 
-	left := borderStyle.Width(24).Render(strings.Join(categories, "\n"))
-	right := borderStyle.Width(58).Render(strings.Join(appLines, "\n"))
+	panelHeight := maxInt(len(categories), len(appLines))
+	if panelHeight < 6 {
+		panelHeight = 6
+	}
+	left := borderStyle.Width(24).Height(panelHeight).Render(strings.Join(categories, "\n"))
+	right := borderStyle.Width(58).Height(panelHeight).Render(strings.Join(appLines, "\n"))
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 
 	parts := []string{
@@ -502,4 +506,11 @@ func fillLines(content string, width, height int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

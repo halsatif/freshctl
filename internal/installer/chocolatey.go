@@ -66,7 +66,8 @@ type BootstrapEvent struct {
 }
 
 func CommandFor(app catalog.App) string {
-	return fmt.Sprintf("choco install %s -y --no-progress", app.ID)
+	args := installArgs(app)
+	return "choco " + strings.Join(args, " ")
 }
 
 func HasPackageManager() bool {
@@ -256,7 +257,7 @@ func installOneWithSkip(ctx context.Context, app catalog.App, events chan<- Even
 }
 
 func installOne(ctx context.Context, app catalog.App, events chan<- Event) error {
-	cmd := exec.CommandContext(ctx, chocoPath(), "install", app.ID, "-y", "--no-progress")
+	cmd := exec.CommandContext(ctx, chocoPath(), installArgs(app)[1:]...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -283,6 +284,14 @@ func installOne(ctx context.Context, app catalog.App, events chan<- Event) error
 		return err
 	}
 	return nil
+}
+
+func installArgs(app catalog.App) []string {
+	args := []string{"install", app.ID, "-y", "--no-progress"}
+	if app.Prerelease {
+		args = append(args, "--pre")
+	}
+	return args
 }
 
 func chocoPath() string {
