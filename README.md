@@ -1,9 +1,7 @@
-<p align="center">
-  <img src="./site/favicon.png" width="48" align="center">
-	<span style="font-size: 42px; font-weight: 700; vertical-align: middle; margin-left: 12px;">
+<h1 align="center">
+  <img src="./site/favicon.png" width="35">
   freshctl
-  </span>
-</p>
+</h1>
 
 <p align="center">
 	<span style="font-size: 30px; font-weight: 300;">
