@@ -1,18 +1,42 @@
-# freshctl
+<p align="center">
+  <img src="./site/favicon.png" width="48" align="center">
+	<span style="font-size: 42px; font-weight: 700; vertical-align: middle; margin-left: 12px;">
+  freshctl
+  </span>
+</p>
 
-![windows](https://img.shields.io/badge/platform-windows-0A84FF?style=flat-square)
-![go](https://img.shields.io/badge/built%20with-go-00ADD8?style=flat-square&logo=go)
-![license](https://img.shields.io/badge/license-MIT-8b5cf6?style=flat-square)
+<p align="center">
+	<span style="font-size: 30px; font-weight: 300;">
+  windows bootstrap utility
+  </span>
+</p>
 
-windows bootstrap utility
+<p align="center">
+	<span style="font-size: 22px; font-weight: 300;">
+  install apps from a clean terminal interface.
+  </span>
+</p>
 
-Install apps from a clean terminal interface.
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-windows-0078D6">
+  <img src="https://img.shields.io/badge/built%20with-go-00ADD8">
+  <img src="https://img.shields.io/badge/license-MIT-purple">
+</p>
+
+## Install
+
+PowerShell:
+
+```powershell
+irm https://freshctl.tech/install.ps1 | iex
+```
 
 ---
 
 ## Screenshot
 
 ![freshctl screenshot](./assets/screenshot.png)
+
 
 ---
 
@@ -25,16 +49,6 @@ Install apps from a clean terminal interface.
 - terminal-native tui
 - fast setup for fresh Windows installs
 - clean minimal interface
-
----
-
-## Install
-
-PowerShell:
-
-```powershell
-irm https://freshctl.tech/install.ps1 | iex
-```
 
 ---
 
