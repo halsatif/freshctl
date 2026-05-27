@@ -61,6 +61,97 @@ func TestCatalogViewHeightStaysStableAcrossNavigation(t *testing.T) {
 	}
 }
 
+func TestEscFromLeafCategoryReturnsToCategoryRoot(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeCategories,
+		catalogPath: []int{0},
+		selected:    map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.screen != screenCatalog {
+		t.Fatalf("esc from leaf category should stay in catalog, got screen %v", got.screen)
+	}
+	if len(got.catalogPath) != 0 {
+		t.Fatalf("esc from leaf category should return to category root, got path %v", got.catalogPath)
+	}
+}
+
+func TestEscFromCategoryRootReturnsToModeSelect(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeCategories,
+		selected:    map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.screen != screenModeSelect {
+		t.Fatalf("esc from category root should return to mode select, got screen %v", got.screen)
+	}
+}
+
+func TestReviewScreenSummarizesLargeSelection(t *testing.T) {
+	selected := map[string]bool{}
+	for _, item := range collectTestPackages(catalog.Default()) {
+		selected[item.PackageID] = true
+	}
+	model := Model{
+		screen:     screenReview,
+		width:      100,
+		height:     24,
+		categories: catalog.Default(),
+		selected:   selected,
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Packages selected:") {
+		t.Fatalf("review should show package count, got:\n%s", view)
+	}
+	if strings.Contains(view, "Commands:") || strings.Contains(view, "choco install") {
+		t.Fatalf("review should not render every install command, got:\n%s", view)
+	}
+	if count := strings.Count(view, "enter install"); count != 1 {
+		t.Fatalf("review footer should remain visible once, got %d in:\n%s", count, view)
+	}
+}
+
+func TestReviewScreenScrollsSelection(t *testing.T) {
+	selected := map[string]bool{}
+	packages := collectTestPackages(catalog.Default())
+	for _, app := range packages {
+		selected[app.PackageID] = true
+	}
+	model := Model{
+		screen:       screenReview,
+		width:        100,
+		height:       24,
+		categories:   catalog.Default(),
+		selected:     selected,
+		reviewScroll: 0,
+	}
+
+	firstView := stripANSI(model.View())
+	updated, _ := model.handleReviewKey(tea.KeyMsg{Type: tea.KeyDown})
+	scrolled := updated.(Model)
+	secondView := stripANSI(scrolled.View())
+
+	if scrolled.reviewScroll != 1 {
+		t.Fatalf("down should scroll review list by one row, got %d", scrolled.reviewScroll)
+	}
+	if firstView == secondView {
+		t.Fatalf("scrolling review list should change visible content")
+	}
+}
+
 func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
@@ -150,7 +241,7 @@ func TestFullCatalogTruncatesLongNamesInsidePane(t *testing.T) {
 	if strings.Contains(view, "\nx86/x64") {
 		t.Fatalf("long package names should not wrap into a stray line, got:\n%s", view)
 	}
-	if !strings.Contains(view, "VC++ Redist 2015-2026 x86/x64") {
+	if !strings.Contains(view, "VC++ Redist 2015-2022 x86/x64") {
 		t.Fatalf("expected long highlighted package to remain visible, got:\n%s", view)
 	}
 }
@@ -180,4 +271,13 @@ func TestEnterDeactivatesCatalogSearch(t *testing.T) {
 func stripANSI(value string) string {
 	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	return re.ReplaceAllString(value, "")
+}
+
+func collectTestPackages(categories []catalog.Category) []catalog.Package {
+	var apps []catalog.Package
+	for _, category := range categories {
+		apps = append(apps, collectTestPackages(category.Categories)...)
+		apps = append(apps, category.Apps...)
+	}
+	return apps
 }

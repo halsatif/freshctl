@@ -51,6 +51,23 @@ type Result struct {
 	Err     error
 }
 
+type InstallError struct {
+	App      catalog.Package
+	ExitCode int
+	Err      error
+}
+
+func (e InstallError) Error() string {
+	if e.ExitCode >= 0 {
+		return fmt.Sprintf("Chocolatey failed for %s (%s) with exit code %d", e.App.Name, e.App.PackageID, e.ExitCode)
+	}
+	return fmt.Sprintf("Chocolatey failed for %s (%s): %v", e.App.Name, e.App.PackageID, e.Err)
+}
+
+func (e InstallError) Unwrap() error {
+	return e.Err
+}
+
 type BootstrapEventKind int
 
 const (
@@ -261,14 +278,14 @@ func installOne(ctx context.Context, app catalog.Package, events chan<- Event) e
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return InstallError{App: app, ExitCode: -1, Err: err}
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return err
+		return InstallError{App: app, ExitCode: -1, Err: err}
 	}
 	if err := cmd.Start(); err != nil {
-		return err
+		return InstallError{App: app, ExitCode: -1, Err: err}
 	}
 
 	var wg sync.WaitGroup
@@ -281,7 +298,12 @@ func installOne(ctx context.Context, app catalog.Package, events chan<- Event) e
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return err
+		exitCode := -1
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		}
+		return InstallError{App: app, ExitCode: exitCode, Err: err}
 	}
 	return nil
 }

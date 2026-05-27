@@ -47,6 +47,7 @@ type Model struct {
 	searchQuery   string
 	selected      map[string]bool
 	notice        string
+	reviewScroll  int
 
 	installEvents chan installer.Event
 	skipInstall   chan struct{}
@@ -144,6 +145,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.clampReviewScroll()
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -298,8 +300,9 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.catalogScroll = 0
 			return m, tea.ClearScreen
 		}
+		wasAtRoot := len(m.catalogPath) == 0
 		m.goBackInCatalog()
-		if len(m.catalogPath) == 0 {
+		if wasAtRoot {
 			m.screen = screenModeSelect
 		}
 		return m, tea.ClearScreen
@@ -312,6 +315,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "i":
 		m.screen = screenReview
+		m.reviewScroll = 0
 		return m, tea.ClearScreen
 	case "/":
 		m.searchFocused = true
@@ -325,6 +329,18 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "up", "k":
+		m.moveReviewScroll(-1)
+	case "down", "j":
+		m.moveReviewScroll(1)
+	case "pgup":
+		m.moveReviewScroll(-m.reviewVisibleRows())
+	case "pgdown":
+		m.moveReviewScroll(m.reviewVisibleRows())
+	case "home":
+		m.reviewScroll = 0
+	case "end":
+		m.reviewScroll = maxInt(0, len(m.selectedApps())-m.reviewVisibleRows())
 	case "b", "esc":
 		m.notice = ""
 		m.screen = screenCatalog
@@ -370,6 +386,37 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) moveReviewScroll(delta int) {
+	m.reviewScroll += delta
+	m.clampReviewScroll()
+}
+
+func (m *Model) clampReviewScroll() {
+	selected := len(m.selectedApps())
+	visible := m.reviewVisibleRows()
+	maxScroll := selected - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.reviewScroll < 0 {
+		m.reviewScroll = 0
+	}
+	if m.reviewScroll > maxScroll {
+		m.reviewScroll = maxScroll
+	}
+}
+
+func (m Model) reviewVisibleRows() int {
+	height := m.height - 15
+	if height < 4 {
+		return 4
+	}
+	if height > 14 {
+		return 14
+	}
+	return height
 }
 
 func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

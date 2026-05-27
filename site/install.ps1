@@ -17,6 +17,14 @@ $ShortcutPath = Join-Path ([Environment]::GetFolderPath("CommonPrograms")) "fres
 $InstallerUrl = "https://freshctl.tech/install.ps1"
 $GitHubApiUrl = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
 
+function Write-Header {
+    if (-not $Silent) {
+        Write-Host ""
+        Write-Host "freshctl installer" -ForegroundColor Cyan
+        Write-Host "------------------" -ForegroundColor DarkGray
+    }
+}
+
 function Write-Info {
     param([string]$Message)
     if (-not $Silent) {
@@ -101,7 +109,7 @@ function Request-Administrator {
         return
     }
 
-    Write-Warn "Administrator privileges are required."
+    Write-Warn "Administrator privileges are required to install freshctl to Program Files and update PATH."
     New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
 
     $scriptPath = Get-CurrentScriptPath
@@ -118,8 +126,12 @@ function Request-Administrator {
     ) + (Get-InstallerArguments)
 
     $hostPath = Get-PowerShellHostPath
-    Write-Info "Opening Windows UAC prompt..."
-    Start-Process -FilePath $hostPath -ArgumentList $argList -Verb RunAs | Out-Null
+    Write-Info "Opening Windows UAC prompt. Continue in the elevated PowerShell window."
+    try {
+        Start-Process -FilePath $hostPath -ArgumentList $argList -Verb RunAs | Out-Null
+    } catch {
+        throw "Could not start elevated installer. Run PowerShell as Administrator and try again."
+    }
     exit 0
 }
 
@@ -296,10 +308,44 @@ function Download-Asset {
     return $downloadPath
 }
 
+function Get-ExistingInstallInfo {
+    if (-not (Test-Path $InstallPath)) {
+        return $null
+    }
+
+    try {
+        $item = Get-Item $InstallPath
+        $version = $item.VersionInfo.ProductVersion
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = $item.VersionInfo.FileVersion
+        }
+        return [pscustomobject]@{
+            Path = $InstallPath
+            Version = $version
+        }
+    } catch {
+        return [pscustomobject]@{
+            Path = $InstallPath
+            Version = $null
+        }
+    }
+}
+
 function Install-Executable {
     param([Parameter(Mandatory = $true)][string]$DownloadedPath)
 
-    Write-Info "Installing to $InstallDir..."
+    $existing = Get-ExistingInstallInfo
+    if ($existing) {
+        if ($existing.Version) {
+            Write-Warn "Existing freshctl installation found: $($existing.Version)"
+        } else {
+            Write-Warn "Existing freshctl installation found."
+        }
+        Write-Info "Updating $InstallPath..."
+    } else {
+        Write-Info "Installing to $InstallDir..."
+    }
+
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     Copy-Item -Path $DownloadedPath -Destination $InstallPath -Force
 
@@ -434,6 +480,9 @@ function Prompt-Launch {
 function Invoke-Install {
     $architecture = Get-SystemArchitecture
     Write-Info "Detected architecture: $architecture"
+    if (Get-ExistingInstallInfo) {
+        Write-Info "freshctl is already installed. The installer will update the existing executable."
+    }
 
     Test-InternetConnectivity
     $release = Get-LatestRelease
@@ -455,13 +504,8 @@ try {
     }
 
     Enable-ModernTls
+    Write-Header
     Request-Administrator
-
-    if (-not $Silent) {
-        Write-Host ""
-        Write-Host "freshctl installer" -ForegroundColor Cyan
-        Write-Host "------------------" -ForegroundColor DarkGray
-    }
 
     if ($Uninstall) {
         Invoke-Uninstall

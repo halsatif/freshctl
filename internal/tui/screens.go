@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/halsatif/freshctl/internal/catalog"
-	"github.com/halsatif/freshctl/internal/installer"
 )
 
 func (m Model) viewWelcome() string {
@@ -198,30 +197,45 @@ func (m Model) catalogHeaderLine() string {
 }
 
 func (m Model) viewReview() string {
+	contentWidth := pageWidth(m.width)
 	selected := m.selectedApps()
+	visibleRows := m.reviewVisibleRows()
+	start := m.reviewScroll
+	if start > len(selected) {
+		start = len(selected)
+	}
+	end := start + visibleRows
+	if end > len(selected) {
+		end = len(selected)
+	}
+
 	lines := []string{
 		titleStyle.Render("review"),
+		mutedStyle.Render(fmt.Sprintf("Packages selected: %d", len(selected))),
+		mutedStyle.Render("Backend: Chocolatey"),
 	}
 
 	if len(selected) == 0 {
 		lines = append(lines, "", mutedStyle.Render("No apps selected yet. Press b to return to the catalog."))
 	} else {
-		lines = append(lines, "", "Selected apps:")
-		for _, app := range selected {
-			lines = append(lines, fmt.Sprintf("  - %s %s", app.Name, mutedStyle.Render(app.PackageID)))
+		rangeLine := fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(selected))
+		if len(selected) > visibleRows {
+			rangeLine += " (up/down or pgup/pgdown to scroll)"
 		}
-
-		lines = append(lines, "", "Commands:")
-		for _, app := range selected {
-			lines = append(lines, "  "+installer.CommandFor(app))
+		lines = append(lines, "", "Selected apps:", mutedStyle.Render(rangeLine))
+		for i := start; i < end; i++ {
+			app := selected[i]
+			line := fmt.Sprintf("  %3d. %-34s %s", i+1, app.Name, mutedStyle.Render(app.PackageID))
+			lines = append(lines, fitLine(line, contentWidth))
 		}
+		lines = append(lines, "", mutedStyle.Render("Commands will run one by one after confirmation."))
 	}
 
 	if m.notice != "" {
 		lines = append(lines, "", errorStyle.Render(m.notice))
 	}
 
-	lines = append(lines, "", hotkeyBar("enter install", "b/esc back", "q quit"))
+	lines = append(lines, "", hotkeyBar("up/down scroll", "enter install", "b/esc back", "q quit"))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -278,6 +292,9 @@ func (m Model) viewInstall() string {
 
 	lines = append(lines, "", "Summary:")
 	lines = append(lines, m.installSummaryTable(contentWidth)...)
+	if m.installDone {
+		lines = append(lines, m.installFailureLines(contentWidth)...)
+	}
 	lines = append(lines, "", hotkeyBar("s skip app", "l show/hide logs", "q quit"))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
@@ -404,6 +421,24 @@ func (m Model) installSummaryTable(width int) []string {
 		elapsed := m.elapsedForApp(app)
 		line := fmt.Sprintf("  %s %-11s %-*s %s", info.RenderedCode(), info.Label, nameWidth, app.Name, elapsed)
 		lines = append(lines, fitLine(line, width))
+	}
+	return lines
+}
+
+func (m Model) installFailureLines(width int) []string {
+	if len(m.results) == 0 {
+		return nil
+	}
+
+	lines := make([]string, 0)
+	for _, result := range m.results {
+		if result.Success || result.Skipped || result.Err == nil {
+			continue
+		}
+		if len(lines) == 0 {
+			lines = append(lines, "", "Failures:")
+		}
+		lines = append(lines, fitLine(errorStyle.Render("  failed ")+result.App.Name+" ("+result.App.PackageID+") - "+result.Err.Error(), width))
 	}
 	return lines
 }
