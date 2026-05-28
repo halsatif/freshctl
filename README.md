@@ -116,9 +116,19 @@ freshctl currently does not keep a separate config directory. Runtime installer 
 
 ## Package Source
 
-Currently supported:
+freshctl currently uses Chocolatey as its install backend.
 
-- Chocolatey
+Package managers are implementation details, not the product identity. The goal is simple: download freshctl, open it, choose apps, and install them quietly with clear status and reliable results.
+
+---
+
+## Project Direction
+
+freshctl prioritizes reliability over catalog size. Packages in the default catalog should be verified, suitable for unattended install, and useful on modern Windows 10/11 systems.
+
+Broken, deprecated, interactive, hardware-dependent, or VM-hostile packages should not be shown by default. A smaller verified catalog is better than a large catalog full of unreliable installs.
+
+Future work is focused on a better Windows setup experience: direct installers where they are more reliable, installed-app detection, clearer UX, proxy and network handling, presets, profiles, and safe Windows setup tweaks.
 
 ---
 
@@ -182,19 +192,6 @@ Examples:
 - ShareX
 - qBittorrent
 - VirtualBox
-
----
-
-## Roadmap
-
-Planned features:
-
-- presets
-- package metadata
-- custom installers
-- auto-update
-- package filtering
-- improved install progress ui
 
 ---
 

@@ -69,6 +69,8 @@ type Model struct {
 	bootstrapBack    screen
 	bootstrapEvents  chan installer.BootstrapEvent
 	bootstrapLog     []string
+	bootstrapStatus  string
+	showBootstrapLog bool
 	bootstrapRunning bool
 	cancelBootstrap  context.CancelFunc
 
@@ -108,7 +110,7 @@ type installTickMsg struct{}
 
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
-	bootstrapLog := []string(nil)
+	bootstrapStatus := ""
 	selected := selectedFromArgs(args)
 	if selected == nil {
 		selected = make(map[string]bool)
@@ -118,7 +120,7 @@ func NewModel(args []string) Model {
 	} else if !installer.HasPackageManager() {
 		if installer.IsElevated() {
 			initialScreen = screenBootstrap
-			bootstrapLog = []string{"choco was not found. freshctl uses Chocolatey to install apps."}
+			bootstrapStatus = "Chocolatey was not found on this system."
 		} else {
 			initialScreen = screenElevation
 		}
@@ -127,12 +129,12 @@ func NewModel(args []string) Model {
 	}
 
 	return Model{
-		screen:        initialScreen,
-		categories:    catalog.Default(),
-		selected:      selected,
-		bootstrapBack: screenWelcome,
-		bootstrapLog:  bootstrapLog,
-		brokenBack:    screenWelcome,
+		screen:          initialScreen,
+		categories:      catalog.Default(),
+		selected:        selected,
+		bootstrapBack:   screenWelcome,
+		bootstrapStatus: bootstrapStatus,
+		brokenBack:      screenWelcome,
 	}
 }
 
@@ -370,7 +372,9 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.screen = screenBootstrap
 			m.bootstrapBack = screenReview
-			m.bootstrapLog = []string{"choco was not found. freshctl uses Chocolatey to install apps."}
+			m.bootstrapLog = nil
+			m.bootstrapStatus = "Chocolatey was not found on this system."
+			m.showBootstrapLog = false
 			m.bootstrapRunning = false
 			return m, nil
 		}
@@ -429,6 +433,9 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cancelBootstrap = nil
 		m.screen = m.bootstrapBack
 		m.notice = "Chocolatey is still missing. Bootstrap Chocolatey or retry detection before installing apps."
+	case "l":
+		m.showBootstrapLog = !m.showBootstrapLog
+		return m, tea.ClearScreen
 	case "enter":
 		if m.bootstrapRunning {
 			return m, nil
@@ -449,6 +456,7 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.notice = ""
 		m.bootstrapRunning = true
+		m.bootstrapStatus = "Bootstrapping Chocolatey..."
 		m.bootstrapLog = append(m.bootstrapLog, "Running official Chocolatey bootstrap command...")
 		ctx, cancel := context.WithCancel(context.Background())
 		m.cancelBootstrap = cancel
@@ -458,6 +466,7 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.bootstrapRunning {
 			return m, nil
 		}
+		m.bootstrapStatus = "Retrying Chocolatey detection..."
 		m.bootstrapLog = append(m.bootstrapLog, "Retrying Chocolatey detection...")
 		return m, retryPackageManagerCmd()
 	}
@@ -572,10 +581,12 @@ func (m Model) handleBootstrapEvent(msg bootstrapEventMsg) (tea.Model, tea.Cmd) 
 		m.bootstrapRunning = false
 		m.cancelBootstrap = nil
 		if event.Ready {
+			m.bootstrapStatus = "Chocolatey installed successfully."
 			m.screen = m.bootstrapBack
 			m.notice = "Chocolatey is available now. Press enter to continue."
 			return m, nil
 		}
+		m.bootstrapStatus = "Chocolatey bootstrap failed."
 		if event.Err != nil {
 			m.bootstrapLog = append(m.bootstrapLog, "Bootstrap failed: "+event.Err.Error())
 		}
@@ -595,11 +606,13 @@ func (m Model) handleRetryPackageManagerMsg(msg retryPackageManagerMsg) (tea.Mod
 		return m, nil
 	}
 	if msg.ready {
+		m.bootstrapStatus = "Chocolatey installed successfully."
 		m.screen = m.bootstrapBack
 		m.notice = "Chocolatey is available now. Press enter to continue."
 		return m, nil
 	}
 
+	m.bootstrapStatus = "Chocolatey was not found on this system."
 	m.bootstrapLog = append(m.bootstrapLog, "Chocolatey is still not available. Run bootstrap again or install Chocolatey manually.")
 	return m, nil
 }
@@ -613,6 +626,8 @@ func (m Model) handleBrokenRecoveryMsg(msg brokenRecoveryMsg) (tea.Model, tea.Cm
 
 	m.screen = screenBootstrap
 	m.bootstrapBack = m.brokenBack
+	m.bootstrapStatus = "Bootstrapping Chocolatey..."
+	m.showBootstrapLog = false
 	m.bootstrapLog = []string{"Removed broken C:\\ProgramData\\chocolatey folder.", "Running official Chocolatey bootstrap command..."}
 	m.bootstrapRunning = true
 	ctx, cancel := context.WithCancel(context.Background())

@@ -300,6 +300,12 @@ func (m Model) viewInstall() string {
 }
 
 func (m Model) viewBootstrap() string {
+	contentWidth := pageWidth(m.width)
+	status := m.bootstrapStatus
+	if status == "" {
+		status = "Chocolatey was not found on this system."
+	}
+
 	lines := []string{
 		titleStyle.Render("chocolatey bootstrap"),
 		"",
@@ -313,25 +319,25 @@ func (m Model) viewBootstrap() string {
 	}
 
 	if m.bootstrapRunning {
-		lines = append(lines, selectedStyle.Render("Bootstrapping Chocolatey..."))
+		lines = append(lines, selectedStyle.Render(status))
 	} else {
-		lines = append(lines, mutedStyle.Render("Press enter to bootstrap, or r to retry detection."))
+		lines = append(lines, mutedStyle.Render(status))
 	}
 
-	logLines := m.bootstrapLog
-	maxLines := m.height - 14
-	if maxLines < 5 {
-		maxLines = 5
-	}
-	if len(logLines) > maxLines {
-		logLines = logLines[len(logLines)-maxLines:]
-	}
-	if len(logLines) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, logLines...)
+	if !m.showBootstrapLog {
+		lines = append(lines, "", mutedStyle.Render("Logs hidden. Press l to show full logs."))
+	} else {
+		logLines := tailLines(m.bootstrapLog, bootstrapLogLimit(m.height))
+		lines = append(lines, "", mutedStyle.Render("full logs"))
+		if len(logLines) == 0 {
+			lines = append(lines, "  "+mutedStyle.Render("Waiting for output..."))
+		}
+		for _, line := range logLines {
+			lines = append(lines, fitLine("  "+sanitizeLogLine(line), contentWidth))
+		}
 	}
 
-	lines = append(lines, "", hotkeyBar("enter bootstrap", "r retry", "b/esc back", "q quit"))
+	lines = append(lines, "", hotkeyBar("enter bootstrap", "l show/hide logs", "r retry", "b/esc back", "q quit"))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -685,6 +691,20 @@ func installLogLimit(height int) int {
 	}
 	if limit > 15 {
 		return 15
+	}
+	return limit
+}
+
+func bootstrapLogLimit(height int) int {
+	if height <= 0 {
+		return 10
+	}
+	limit := height - 17
+	if limit < 4 {
+		return 4
+	}
+	if limit > 12 {
+		return 12
 	}
 	return limit
 }

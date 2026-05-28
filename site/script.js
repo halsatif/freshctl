@@ -7,7 +7,6 @@ const packageCatalog = [
   ["Microsoft Edge", "microsoft-edge"],
   ["Brave Browser", "brave"],
   ["Vivaldi", "vivaldi"],
-  ["Yandex Browser", "yandex-browser"],
   ["Tor Browser", "tor-browser"],
   ["LibreWolf", "librewolf"],
   ["Zen Browser", "zen-browser"],

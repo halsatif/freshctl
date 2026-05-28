@@ -32,7 +32,6 @@ func Default() []Category {
 				{Name: "Microsoft Edge", PackageID: "microsoft-edge", CategoryType: "browser", Description: "Microsoft Edge browser."},
 				{Name: "Brave Browser", PackageID: "brave", CategoryType: "browser", Description: "Privacy-focused Chromium browser."},
 				{Name: "Vivaldi", PackageID: "vivaldi", CategoryType: "browser", Description: "Highly customizable browser."},
-				{Name: "Yandex Browser", PackageID: "yandex-browser", CategoryType: "browser", Description: "Yandex web browser."},
 				{Name: "Tor Browser", PackageID: "tor-browser", CategoryType: "browser", Description: "Browser for Tor network access."},
 				{Name: "LibreWolf", PackageID: "librewolf", CategoryType: "browser", Description: "Privacy-focused Firefox fork."},
 				{Name: "Zen Browser", PackageID: "zen-browser", CategoryType: "browser", Description: "Modern Firefox-based browser.", Prerelease: true},

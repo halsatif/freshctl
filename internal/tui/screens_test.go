@@ -152,6 +152,67 @@ func TestReviewScreenScrollsSelection(t *testing.T) {
 	}
 }
 
+func TestBootstrapLogsHiddenByDefault(t *testing.T) {
+	model := Model{
+		screen:          screenBootstrap,
+		width:           90,
+		height:          24,
+		selected:        map[string]bool{},
+		bootstrapStatus: "Bootstrapping Chocolatey...",
+		bootstrapLog: []string{
+			"RAW CHOCOLATEY POWERSHELL OUTPUT",
+			"Downloading chocolatey package from source https://community.chocolatey.org/api/v2/",
+		},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "RAW CHOCOLATEY POWERSHELL OUTPUT") ||
+		strings.Contains(view, "community.chocolatey.org/api/v2") {
+		t.Fatalf("bootstrap raw logs should be hidden by default, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Logs hidden. Press l to show full logs.") {
+		t.Fatalf("bootstrap view should show hidden logs hint, got:\n%s", view)
+	}
+	if count := strings.Count(view, "enter bootstrap"); count != 1 {
+		t.Fatalf("bootstrap footer should remain visible once, got %d in:\n%s", count, view)
+	}
+}
+
+func TestBootstrapLogToggleShowsClippedLogs(t *testing.T) {
+	longLine := "Downloading " + strings.Repeat("very-long-output-", 20)
+	model := Model{
+		screen:           screenBootstrap,
+		width:            90,
+		height:           22,
+		selected:         map[string]bool{},
+		bootstrapStatus:  "Bootstrapping Chocolatey...",
+		showBootstrapLog: true,
+		bootstrapLog: []string{
+			"first line should scroll away",
+			"second line should scroll away",
+			"third line should scroll away",
+			"fourth line should scroll away",
+			"fifth line should scroll away",
+			"Installing Chocolatey...",
+			longLine,
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "full logs") || !strings.Contains(view, "Installing Chocolatey") {
+		t.Fatalf("bootstrap logs should render when enabled, got:\n%s", view)
+	}
+	if strings.Contains(view, longLine) {
+		t.Fatalf("long bootstrap log lines should be truncated, got:\n%s", view)
+	}
+	if strings.Contains(view, "first line should scroll away") {
+		t.Fatalf("bootstrap logs should be clipped to visible height, got:\n%s", view)
+	}
+	if count := strings.Count(view, "l show/hide logs"); count != 1 {
+		t.Fatalf("bootstrap footer should remain visible once, got %d in:\n%s", count, view)
+	}
+}
+
 func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
