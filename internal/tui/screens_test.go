@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
@@ -58,6 +59,17 @@ func TestCatalogViewHeightStaysStableAcrossNavigation(t *testing.T) {
 	browserLines := strings.Split(browsers.View(), "\n")
 	if len(rootLines) != len(browserLines) {
 		t.Fatalf("catalog view line count should stay stable, root=%d browsers=%d", len(rootLines), len(browserLines))
+	}
+}
+
+func TestCatalogBreadcrumbIncludesRoot(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogPath: []int{3, 1},
+	}
+
+	if got := model.currentBreadcrumb(); got != "Catalog > Media > Images & Graphics" {
+		t.Fatalf("breadcrumb should include catalog root, got %q", got)
 	}
 }
 
@@ -213,6 +225,94 @@ func TestBootstrapLogToggleShowsClippedLogs(t *testing.T) {
 	}
 }
 
+func TestInstallSummaryScrollsLongPackageList(t *testing.T) {
+	apps := fakeInstallPackages(24)
+	model := Model{
+		screen:      screenInstall,
+		width:       100,
+		height:      24,
+		installApps: apps,
+		appStatus:   map[string]string{},
+		appElapsed:  map[string]time.Duration{},
+	}
+	for _, app := range apps {
+		model.appStatus[app.PackageID] = "pending"
+	}
+
+	firstView := stripANSI(model.View())
+	updated, _ := model.handleInstallKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	scrolled := updated.(Model)
+	secondView := stripANSI(scrolled.View())
+
+	if scrolled.installScroll == 0 {
+		t.Fatal("pgdown should scroll the install summary")
+	}
+	if firstView == secondView {
+		t.Fatalf("scrolling install summary should change visible rows")
+	}
+	if !strings.Contains(secondView, "up/down scroll") {
+		t.Fatalf("install footer should remain visible after scrolling, got:\n%s", secondView)
+	}
+}
+
+func TestInstallSummaryDoesNotDuplicateVisibleRows(t *testing.T) {
+	apps := fakeInstallPackages(20)
+	model := Model{
+		screen:      screenInstall,
+		width:       100,
+		height:      24,
+		installApps: apps,
+		appStatus:   map[string]string{},
+		appElapsed:  map[string]time.Duration{},
+	}
+	for _, app := range apps {
+		model.appStatus[app.PackageID] = "pending"
+	}
+	model.appStatus[apps[0].PackageID] = "installing"
+
+	updated, _ := model.handleInstallTick()
+	ticked := updated.(Model)
+	view := stripANSI(ticked.View())
+
+	visible := 0
+	for _, app := range apps {
+		count := strings.Count(view, app.Name)
+		if count > 1 {
+			t.Fatalf("expected %s to render at most once, got %d in:\n%s", app.Name, count, view)
+		}
+		if count == 1 {
+			visible++
+		}
+	}
+	if visible == 0 {
+		t.Fatalf("expected install summary to render visible package rows, got:\n%s", view)
+	}
+}
+
+func TestInstallElapsedFreezesAfterCompletion(t *testing.T) {
+	app := catalog.Package{Name: "Example App", PackageID: "example"}
+	model := Model{
+		screen:       screenInstall,
+		width:        100,
+		height:       24,
+		installApps:  []catalog.Package{app},
+		appStatus:    map[string]string{"example": "installed"},
+		appElapsed:   map[string]time.Duration{"example": 3 * time.Second},
+		currentApp:   app,
+		currentStart: time.Now().Add(-1 * time.Hour),
+		currentStep:  1,
+		installDone:  true,
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "00:03") {
+		t.Fatalf("completed install should show frozen elapsed time, got:\n%s", view)
+	}
+	if strings.Contains(view, "60:") || strings.Contains(view, "59:") {
+		t.Fatalf("completed install elapsed should not keep increasing, got:\n%s", view)
+	}
+}
+
 func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
@@ -341,4 +441,22 @@ func collectTestPackages(categories []catalog.Category) []catalog.Package {
 		apps = append(apps, category.Apps...)
 	}
 	return apps
+}
+
+func fakeInstallPackages(count int) []catalog.Package {
+	apps := make([]catalog.Package, 0, count)
+	for i := 1; i <= count; i++ {
+		apps = append(apps, catalog.Package{
+			Name:      "Package " + twoDigit(i),
+			PackageID: "pkg-" + twoDigit(i),
+		})
+	}
+	return apps
+}
+
+func twoDigit(value int) string {
+	if value < 10 {
+		return "0" + string(rune('0'+value))
+	}
+	return string(rune('0'+value/10)) + string(rune('0'+value%10))
 }

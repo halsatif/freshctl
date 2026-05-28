@@ -248,7 +248,13 @@ func (m Model) viewInstall() string {
 	}
 	elapsed := ""
 	if !m.currentStart.IsZero() {
-		elapsed = " " + mutedStyle.Render(formatElapsed(time.Since(m.currentStart)))
+		currentElapsed := formatElapsed(time.Since(m.currentStart))
+		if m.installDone {
+			if frozen := m.elapsedForApp(m.currentApp); frozen != "--:--" {
+				currentElapsed = frozen
+			}
+		}
+		elapsed = " " + mutedStyle.Render(currentElapsed)
 	}
 
 	progress := fmt.Sprintf("[%d/%d]", m.currentStep, total)
@@ -291,11 +297,16 @@ func (m Model) viewInstall() string {
 	}
 
 	lines = append(lines, "", "Summary:")
-	lines = append(lines, m.installSummaryTable(contentWidth)...)
+	visibleRows := m.installSummaryVisibleRows(len(lines))
+	if len(m.installApps) > visibleRows {
+		start, end := m.installSummaryRange(visibleRows)
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(m.installApps))))
+	}
+	lines = append(lines, m.installSummaryTable(contentWidth, visibleRows)...)
 	if m.installDone {
 		lines = append(lines, m.installFailureLines(contentWidth)...)
 	}
-	lines = append(lines, "", hotkeyBar("s skip app", "l show/hide logs", "q quit"))
+	lines = append(lines, "", hotkeyBar("up/down scroll", "s skip app", "l show/hide logs", "q quit"))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -411,14 +422,15 @@ func (m Model) summaryLines() []string {
 	return lines
 }
 
-func (m Model) installSummaryTable(width int) []string {
+func (m Model) installSummaryTable(width, visibleRows int) []string {
 	if len(m.installApps) == 0 {
 		return []string{"  " + mutedStyle.Render("No apps queued.")}
 	}
 
-	lines := make([]string, 0, len(m.installApps))
+	start, end := m.installSummaryRange(visibleRows)
+	lines := make([]string, 0, end-start)
 	nameWidth := m.installNameWidth(width)
-	for _, app := range m.installApps {
+	for _, app := range m.installApps[start:end] {
 		status := m.appStatus[app.PackageID]
 		if status == "" {
 			status = "pending"
@@ -431,12 +443,49 @@ func (m Model) installSummaryTable(width int) []string {
 	return lines
 }
 
+func (m Model) installSummaryRange(visibleRows int) (int, int) {
+	if visibleRows <= 0 || visibleRows > len(m.installApps) {
+		visibleRows = len(m.installApps)
+	}
+	start := m.installScroll
+	if start < 0 {
+		start = 0
+	}
+	if start > len(m.installApps)-visibleRows {
+		start = len(m.installApps) - visibleRows
+	}
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleRows
+	if end > len(m.installApps) {
+		end = len(m.installApps)
+	}
+	return start, end
+}
+
+func (m Model) installSummaryVisibleRows(usedLines int) int {
+	if m.height <= 0 {
+		return 12
+	}
+	rows := m.height - usedLines - 4
+	if rows < 4 {
+		return 4
+	}
+	if rows > 14 {
+		return 14
+	}
+	return rows
+}
+
 func (m Model) installFailureLines(width int) []string {
 	if len(m.results) == 0 {
 		return nil
 	}
 
 	lines := make([]string, 0)
+	shown := 0
+	hidden := 0
 	for _, result := range m.results {
 		if result.Success || result.Skipped || result.Err == nil {
 			continue
@@ -444,7 +493,15 @@ func (m Model) installFailureLines(width int) []string {
 		if len(lines) == 0 {
 			lines = append(lines, "", "Failures:")
 		}
+		if shown >= 3 {
+			hidden++
+			continue
+		}
 		lines = append(lines, fitLine(errorStyle.Render("  failed ")+result.App.Name+" ("+result.App.PackageID+") - "+result.Err.Error(), width))
+		shown++
+	}
+	if hidden > 0 {
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("  %d more failures. Press l to inspect full logs.", hidden)))
 	}
 	return lines
 }

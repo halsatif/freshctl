@@ -48,6 +48,7 @@ type Model struct {
 	selected      map[string]bool
 	notice        string
 	reviewScroll  int
+	installScroll int
 
 	installEvents chan installer.Event
 	skipInstall   chan struct{}
@@ -148,6 +149,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.clampReviewScroll()
+		m.clampInstallScroll()
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -557,6 +559,11 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 			m.fullLog = append(m.fullLog, "failed: "+event.App.Name+" - "+event.Err.Error())
 		}
 	case installer.EventSummary:
+		if !m.currentStart.IsZero() && m.currentApp.PackageID != "" {
+			if _, ok := m.appElapsed[m.currentApp.PackageID]; !ok {
+				m.appElapsed[m.currentApp.PackageID] = time.Since(m.currentStart)
+			}
+		}
 		m.results = event.Results
 		m.installDone = true
 		m.cancelInstall = nil
@@ -647,8 +654,21 @@ func (m Model) handleElevationMsg(msg elevationMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "up", "k":
+		m.moveInstallScroll(-1)
+	case "down", "j":
+		m.moveInstallScroll(1)
+	case "pgup":
+		m.moveInstallScroll(-m.installSummaryVisibleRows(0))
+	case "pgdown":
+		m.moveInstallScroll(m.installSummaryVisibleRows(0))
+	case "home":
+		m.installScroll = 0
+	case "end":
+		m.installScroll = maxInt(0, len(m.installApps)-m.installSummaryVisibleRows(0))
 	case "l":
 		m.showFullLog = !m.showFullLog
+		m.clampInstallScroll()
 		return m, tea.ClearScreen
 	case "s":
 		if !m.installDone && m.skipInstall != nil && m.currentApp.PackageID != "" {
@@ -662,6 +682,25 @@ func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *Model) moveInstallScroll(delta int) {
+	m.installScroll += delta
+	m.clampInstallScroll()
+}
+
+func (m *Model) clampInstallScroll() {
+	visible := m.installSummaryVisibleRows(0)
+	maxScroll := len(m.installApps) - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.installScroll < 0 {
+		m.installScroll = 0
+	}
+	if m.installScroll > maxScroll {
+		m.installScroll = maxScroll
+	}
 }
 
 func (m Model) handleInstallTick() (tea.Model, tea.Cmd) {
@@ -691,6 +730,7 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.currentStep = 0
 	m.currentCmd = ""
 	m.currentStart = time.Time{}
+	m.installScroll = 0
 	m.spinnerFrame = 0
 	m.installDone = false
 	m.installEvents = make(chan installer.Event)
@@ -720,11 +760,7 @@ func (m Model) currentNode() catalog.Category {
 }
 
 func (m Model) currentBreadcrumb() string {
-	if len(m.catalogPath) == 0 {
-		return "Catalog"
-	}
-
-	names := make([]string, 0, len(m.catalogPath))
+	names := []string{"Catalog"}
 	node := catalog.Category{Categories: m.categories}
 	for _, index := range m.catalogPath {
 		if index < 0 || index >= len(node.Categories) {
@@ -732,9 +768,6 @@ func (m Model) currentBreadcrumb() string {
 		}
 		node = node.Categories[index]
 		names = append(names, node.Name)
-	}
-	if len(names) == 0 {
-		return "Catalog"
 	}
 	return strings.Join(names, " > ")
 }
