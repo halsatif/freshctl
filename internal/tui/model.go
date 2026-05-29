@@ -218,6 +218,24 @@ func dropLastRune(value string) string {
 	return string(runes[:len(runes)-1])
 }
 
+func searchTextInput(msg tea.KeyMsg) (string, bool) {
+	if msg.Alt || len(msg.Runes) == 0 {
+		return "", false
+	}
+
+	runes := make([]rune, 0, len(msg.Runes))
+	for _, r := range msg.Runes {
+		if r == unicode.ReplacementChar || !unicode.IsPrint(r) || unicode.IsControl(r) {
+			continue
+		}
+		runes = append(runes, r)
+	}
+	if len(runes) == 0 {
+		return "", false
+	}
+	return string(runes), true
+}
+
 var russianKeyboardAliases = map[rune]string{
 	'й': "q",
 	'ц': "w",
@@ -348,8 +366,8 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.ensureCatalogCursorVisible()
 			}
 		default:
-			if len(msg.Runes) > 0 {
-				m.searchQuery += string(msg.Runes)
+			if text, ok := searchTextInput(msg); ok {
+				m.searchQuery += text
 				m.clampCatalogCursor()
 				m.ensureCatalogCursorVisible()
 			}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
@@ -833,6 +834,31 @@ func TestBackspaceRemovesOneUnicodeRuneFromCatalogSearch(t *testing.T) {
 	}
 	if strings.Contains(stripANSI(got.View()), "�") {
 		t.Fatalf("backspace should not leave replacement glyphs, got:\n%s", stripANSI(got.View()))
+	}
+}
+
+func TestCatalogSearchIgnoresAltAndControlRunes(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "code",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}, Alt: true})
+	got := updated.(Model)
+	if got.searchQuery != "code" {
+		t.Fatalf("alt-modified runes should not be inserted into search, got %q", got.searchQuery)
+	}
+
+	updated, _ = got.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{0, '\x1b', unicode.ReplacementChar}})
+	got = updated.(Model)
+	if got.searchQuery != "code" {
+		t.Fatalf("control/replacement runes should not be inserted into search, got %q", got.searchQuery)
 	}
 }
 
