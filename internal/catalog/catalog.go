@@ -1,9 +1,27 @@
 package catalog
 
+type PackageType string
+
+const (
+	PackageTypeApplication PackageType = "Application"
+	PackageTypeCLITool     PackageType = "CLITool"
+	PackageTypeRuntime     PackageType = "Runtime"
+)
+
+type PackageSource string
+
+const (
+	PackageSourceChocolatey PackageSource = "Chocolatey"
+)
+
 type Package struct {
 	Name         string
 	Description  string
+	Category     string
+	Type         PackageType
+	Source       PackageSource
 	PackageID    string
+	Verified     bool
 	CategoryType string
 	Selected     bool
 	Prerelease   bool
@@ -18,7 +36,7 @@ type Category struct {
 }
 
 func Default() []Category {
-	return []Category{
+	categories := []Category{
 		{
 			Name:         "Browsers",
 			CategoryType: "category",
@@ -412,4 +430,43 @@ func Default() []Category {
 			},
 		},
 	}
+
+	normalizeCategories(categories)
+	return categories
+}
+
+func normalizeCategories(categories []Category) {
+	for categoryIndex := range categories {
+		category := &categories[categoryIndex]
+		normalizeCategories(category.Categories)
+		for appIndex := range category.Apps {
+			app := &category.Apps[appIndex]
+			if app.Category == "" {
+				app.Category = app.CategoryType
+			}
+			if app.Type == "" {
+				app.Type = inferPackageType(*app)
+			}
+			if app.Source == "" {
+				app.Source = PackageSourceChocolatey
+			}
+			app.Verified = true
+		}
+	}
+}
+
+func inferPackageType(app Package) PackageType {
+	switch app.CategoryType {
+	case "runtime", "sdk":
+		return PackageTypeRuntime
+	case "terminal":
+		return PackageTypeCLITool
+	}
+
+	switch app.PackageID {
+	case "helix", "neovim", "git", "yt-dlp", "ffmpeg", "adb", "scrcpy", "putty", "nmap", "autoruns", "procexp":
+		return PackageTypeCLITool
+	}
+
+	return PackageTypeApplication
 }

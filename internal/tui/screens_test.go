@@ -73,6 +73,68 @@ func TestCatalogBreadcrumbIncludesRoot(t *testing.T) {
 	}
 }
 
+func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
+	app := catalog.Package{
+		Name:        "Visual Studio Code",
+		Description: "Code editor with extensions and integrated tools.",
+		PackageID:   "vscode",
+		Type:        catalog.PackageTypeApplication,
+		Source:      catalog.PackageSourceChocolatey,
+		Verified:    true,
+	}
+
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 40))
+	for _, want := range []string{
+		"Package:",
+		"vscode",
+		"Type:",
+		"Application",
+		"Manager:",
+		"Chocolatey",
+		"Verified:",
+		"Yes",
+		"Description:",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("details panel should contain %q, got:\n%s", want, view)
+		}
+	}
+}
+
+func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
+	apps := packagesByIDForTUITest(catalog.Default())
+	app, ok := apps["helix"]
+	if !ok {
+		t.Fatal("expected Helix in default catalog")
+	}
+
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44))
+	if !strings.Contains(view, "CLI Tool") {
+		t.Fatalf("CLI package should render CLI Tool type, got:\n%s", view)
+	}
+	if !strings.Contains(view, "hx") {
+		t.Fatalf("Helix description should mention hx command, got:\n%s", view)
+	}
+}
+
+func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
+	app := catalog.Package{
+		Name:        "Long App",
+		Description: strings.Repeat("long metadata ", 12),
+		PackageID:   "very-long-package-id-that-should-be-truncated",
+		Type:        catalog.PackageTypeApplication,
+		Source:      catalog.PackageSourceChocolatey,
+		Verified:    true,
+	}
+
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "Yes"), 26))
+	for _, line := range strings.Split(view, "\n") {
+		if len(line) > 27 {
+			t.Fatalf("details line should be constrained, got %d chars in %q\n%s", len(line), line, view)
+		}
+	}
+}
+
 func TestEscFromLeafCategoryReturnsToCategoryRoot(t *testing.T) {
 	model := Model{
 		screen:      screenCatalog,
@@ -439,6 +501,14 @@ func collectTestPackages(categories []catalog.Category) []catalog.Package {
 	for _, category := range categories {
 		apps = append(apps, collectTestPackages(category.Categories)...)
 		apps = append(apps, category.Apps...)
+	}
+	return apps
+}
+
+func packagesByIDForTUITest(categories []catalog.Category) map[string]catalog.Package {
+	apps := make(map[string]catalog.Package)
+	for _, app := range collectTestPackages(categories) {
+		apps[app.PackageID] = app
 	}
 	return apps
 }

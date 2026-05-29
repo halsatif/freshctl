@@ -611,18 +611,45 @@ func categoryDetailsLines(category catalog.Category) []string {
 }
 
 func packageDetailsLines(app catalog.Package, selected string) []string {
+	source := string(app.Source)
+	if source == "" {
+		source = string(catalog.PackageSourceChocolatey)
+	}
+	verified := "No"
+	if app.Verified {
+		verified = "Yes"
+	}
 	lines := []string{
 		"Package:",
 		app.PackageID,
 		"",
+		"Type:",
+		packageTypeLabel(app.Type),
+		"",
 		"Manager:",
-		"Chocolatey",
+		source,
+		"",
+		"Verified:",
+		verified,
 		"",
 		"Description:",
 	}
 	lines = append(lines, wrapText(app.Description, 28)...)
 	lines = append(lines, "", "Selected:", selected)
 	return lines
+}
+
+func packageTypeLabel(packageType catalog.PackageType) string {
+	switch packageType {
+	case catalog.PackageTypeCLITool:
+		return "CLI Tool"
+	case catalog.PackageTypeRuntime:
+		return "Runtime"
+	case catalog.PackageTypeApplication:
+		return "Application"
+	default:
+		return "Application"
+	}
 }
 
 func categoryContents(category catalog.Category, limit int) []string {
