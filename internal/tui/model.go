@@ -268,7 +268,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			m.moveCatalogCursor(1)
 		case "enter":
-			m.selectCurrentApp()
+			m.searchFocused = false
 		case "esc":
 			m.searchFocused = false
 			m.searchQuery = ""
@@ -823,15 +823,6 @@ func (m *Model) toggleCurrentApp() {
 	}
 
 	m.selected[app.PackageID] = !m.selected[app.PackageID]
-}
-
-func (m *Model) selectCurrentApp() {
-	app, ok := m.currentPackageSelection()
-	if !ok {
-		return
-	}
-
-	m.selected[app.PackageID] = true
 }
 
 func (m Model) catalogItemCount() int {

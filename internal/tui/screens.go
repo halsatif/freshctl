@@ -96,8 +96,10 @@ func (m Model) viewCatalog() string {
 	if m.notice != "" {
 		parts = append(parts, "", errorStyle.Render(m.notice))
 	}
-	if m.searchActive() {
-		parts = append(parts, "", hotkeyBar("up/down move", "enter select", "backspace edit", "esc clear", "q quit"))
+	if m.searchFocused {
+		parts = append(parts, "", hotkeyBar("up/down move", "enter done", "space select", "backspace edit", "esc clear", "q quit"))
+	} else if m.searchActive() {
+		parts = append(parts, "", hotkeyBar("up/down move", "space select", "i install", "esc clear", "q quit"))
 	} else if m.catalogMode == catalogModeFull {
 		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "i install", "esc back/clear", "q quit"))
 	} else {

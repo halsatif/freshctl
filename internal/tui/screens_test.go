@@ -549,7 +549,7 @@ func TestCatalogSearchClearsWithEscape(t *testing.T) {
 	}
 }
 
-func TestCatalogSearchEnterSelectsPackage(t *testing.T) {
+func TestCatalogSearchEnterStopsEditingWithoutSelectingPackage(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
 		width:         100,
@@ -558,16 +558,19 @@ func TestCatalogSearchEnterSelectsPackage(t *testing.T) {
 		catalogMode:   catalogModeCategories,
 		searchFocused: true,
 		searchQuery:   "discord",
-		selected:      map[string]bool{"discord": true},
+		selected:      map[string]bool{},
 	}
 
 	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEnter})
 	got := updated.(Model)
-	if !got.selected["discord"] {
-		t.Fatalf("enter should keep highlighted search result selected")
+	if got.selected["discord"] {
+		t.Fatalf("enter should not select highlighted search result")
 	}
-	if !got.searchFocused {
-		t.Fatalf("enter should keep search active after selecting")
+	if got.searchFocused {
+		t.Fatalf("enter should stop editing search")
+	}
+	if got.searchQuery != "discord" {
+		t.Fatalf("enter should keep current search query, got %q", got.searchQuery)
 	}
 }
 
