@@ -210,6 +210,14 @@ func keyName(msg tea.KeyMsg) string {
 	return key
 }
 
+func dropLastRune(value string) string {
+	if value == "" {
+		return ""
+	}
+	runes := []rune(value)
+	return string(runes[:len(runes)-1])
+}
+
 var russianKeyboardAliases = map[rune]string{
 	'й': "q",
 	'ц': "w",
@@ -335,7 +343,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureCatalogCursorVisible()
 		case "backspace":
 			if len(m.searchQuery) > 0 {
-				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				m.searchQuery = dropLastRune(m.searchQuery)
 				m.clampCatalogCursor()
 				m.ensureCatalogCursorVisible()
 			}

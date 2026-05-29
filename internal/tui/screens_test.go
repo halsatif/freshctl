@@ -814,6 +814,28 @@ func TestBackspaceEditsCatalogSearch(t *testing.T) {
 	}
 }
 
+func TestBackspaceRemovesOneUnicodeRuneFromCatalogSearch(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "браузер",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	got := updated.(Model)
+	if got.searchQuery != "браузе" {
+		t.Fatalf("backspace should remove one unicode rune, got %q", got.searchQuery)
+	}
+	if strings.Contains(stripANSI(got.View()), "�") {
+		t.Fatalf("backspace should not leave replacement glyphs, got:\n%s", stripANSI(got.View()))
+	}
+}
+
 func containsPackage(items []fullCatalogItem, packageID string) bool {
 	for _, item := range items {
 		if item.Package.PackageID == packageID {
