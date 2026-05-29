@@ -80,12 +80,8 @@ func (m Model) viewCatalog() string {
 		mutedStyle.Render(m.catalogHeaderLine()),
 	}
 	if m.searchActive() {
-		query := m.searchQuery
-		if query == "" {
-			query = "type to search"
-		}
 		parts = append(parts,
-			mutedStyle.Render("Search: "+query),
+			mutedStyle.Render("Search: "+m.searchInputText()),
 			mutedStyle.Render(fmt.Sprintf("Results: %d packages", len(m.filteredFullCatalogItems()))),
 		)
 	}
@@ -114,6 +110,17 @@ func (m Model) catalogListLines() []string {
 		return m.fullCatalogListLines()
 	}
 	return m.categoryCatalogListLines()
+}
+
+func (m Model) searchInputText() string {
+	if !m.searchFocused {
+		return m.searchQuery
+	}
+	cursor := " "
+	if m.searchCursor {
+		cursor = "|"
+	}
+	return m.searchQuery + cursor
 }
 
 func (m Model) categoryCatalogListLines() []string {

@@ -593,6 +593,35 @@ func TestCatalogSearchTypingAppendsLetters(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchShowsBlinkingInputCursor(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchCursor:  true,
+		searchQuery:   "code",
+		selected:      map[string]bool{},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Search: code|") {
+		t.Fatalf("focused search should show visible input cursor, got:\n%s", view)
+	}
+
+	updated, _ := model.handleSearchCursorTick()
+	got := updated.(Model)
+	if got.searchCursor {
+		t.Fatal("search cursor tick should toggle cursor visibility")
+	}
+	view = stripANSI(got.View())
+	if !strings.Contains(view, "Search: code ") {
+		t.Fatalf("hidden cursor should preserve input spacing, got:\n%s", view)
+	}
+}
+
 func TestCatalogSearchSpaceTypesSpaceWhileFocused(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,

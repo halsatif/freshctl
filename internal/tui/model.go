@@ -45,6 +45,7 @@ type Model struct {
 	catalogMode   catalogMode
 	searchFocused bool
 	searchQuery   string
+	searchCursor  bool
 	selected      map[string]bool
 	notice        string
 	reviewScroll  int
@@ -109,6 +110,8 @@ type brokenRecoveryMsg struct {
 
 type installTickMsg struct{}
 
+type searchCursorTickMsg struct{}
+
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
 	bootstrapStatus := ""
@@ -165,6 +168,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBrokenRecoveryMsg(msg)
 	case installTickMsg:
 		return m.handleInstallTick()
+	case searchCursorTickMsg:
+		return m.handleSearchCursorTick()
 	}
 
 	return m, nil
@@ -269,8 +274,10 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveCatalogCursor(1)
 		case "enter":
 			m.searchFocused = false
+			m.searchCursor = false
 		case "esc":
 			m.searchFocused = false
+			m.searchCursor = false
 			m.searchQuery = ""
 			m.catalogCursor = 0
 			m.catalogScroll = 0
@@ -329,9 +336,11 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	case "/":
 		m.searchFocused = true
+		m.searchCursor = true
 		m.searchQuery = ""
 		m.catalogCursor = 0
 		m.catalogScroll = 0
+		return m, searchCursorTickCmd()
 	}
 
 	return m, nil
@@ -718,6 +727,14 @@ func (m Model) handleInstallTick() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tea.ClearScreen, installTickCmd())
 	}
 	return m, installTickCmd()
+}
+
+func (m Model) handleSearchCursorTick() (tea.Model, tea.Cmd) {
+	if m.screen != screenCatalog || !m.searchFocused {
+		return m, nil
+	}
+	m.searchCursor = !m.searchCursor
+	return m, searchCursorTickCmd()
 }
 
 func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
@@ -1125,6 +1142,12 @@ func recoverBrokenChocolateyCmd() tea.Cmd {
 func installTickCmd() tea.Cmd {
 	return tea.Tick(250*time.Millisecond, func(time.Time) tea.Msg {
 		return installTickMsg{}
+	})
+}
+
+func searchCursorTickCmd() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
+		return searchCursorTickMsg{}
 	})
 }
 
