@@ -375,6 +375,13 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.searchActive() && keyName(msg) == "esc" {
+		m.searchQuery = ""
+		m.catalogCursor = 0
+		m.catalogScroll = 0
+		return m, nil
+	}
+
 	switch keyName(msg) {
 	case "tab":
 		return m, nil

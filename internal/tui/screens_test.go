@@ -610,6 +610,30 @@ func TestCatalogSearchClearsWithEscape(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchEscapeClearsInactiveSearchBeforeLeavingCatalog(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: false,
+		searchQuery:   "discord",
+		catalogCursor: 2,
+		catalogScroll: 1,
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.screen != screenCatalog {
+		t.Fatalf("esc should clear inactive search before leaving catalog, got screen %v", got.screen)
+	}
+	if got.searchQuery != "" || got.catalogCursor != 0 || got.catalogScroll != 0 {
+		t.Fatalf("esc should clear inactive search state, query=%q cursor=%d scroll=%d", got.searchQuery, got.catalogCursor, got.catalogScroll)
+	}
+}
+
 func TestCatalogSearchEnterStopsEditingWithoutSelectingPackage(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
