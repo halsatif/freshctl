@@ -35,6 +35,36 @@ type Category struct {
 	Apps         []Package
 }
 
+func app(name, id, category, description string) Package {
+	return packageWithType(name, id, category, description, PackageTypeApplication)
+}
+
+func cli(name, id, category, description string) Package {
+	return packageWithType(name, id, category, description, PackageTypeCLITool)
+}
+
+func runtimePackage(name, id, category, description string) Package {
+	return packageWithType(name, id, category, description, PackageTypeRuntime)
+}
+
+func prerelease(pkg Package) Package {
+	pkg.Prerelease = true
+	return pkg
+}
+
+func packageWithType(name, id, category, description string, packageType PackageType) Package {
+	return Package{
+		Name:         name,
+		PackageID:    id,
+		Category:     category,
+		CategoryType: category,
+		Description:  description,
+		Type:         packageType,
+		Source:       PackageSourceChocolatey,
+		Verified:     true,
+	}
+}
+
 func Default() []Category {
 	categories := []Category{
 		{
@@ -42,17 +72,17 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Web browsers for everyday browsing, privacy-focused workflows, and alternate browser engines.",
 			Apps: []Package{
-				{Name: "Google Chrome", PackageID: "googlechrome", CategoryType: "browser", Description: "Google's web browser."},
-				{Name: "Opera", PackageID: "opera", CategoryType: "browser", Description: "Opera web browser."},
-				{Name: "Opera GX", PackageID: "opera-gx", CategoryType: "browser", Description: "Opera browser tuned for gaming."},
-				{Name: "Mozilla Firefox", PackageID: "firefox", CategoryType: "browser", Description: "Mozilla Firefox web browser."},
-				{Name: "Waterfox", PackageID: "waterfox", CategoryType: "browser", Description: "Firefox-derived browser focused on customization."},
-				{Name: "Microsoft Edge", PackageID: "microsoft-edge", CategoryType: "browser", Description: "Microsoft Edge browser."},
-				{Name: "Brave Browser", PackageID: "brave", CategoryType: "browser", Description: "Privacy-focused Chromium browser."},
-				{Name: "Vivaldi", PackageID: "vivaldi", CategoryType: "browser", Description: "Highly customizable browser."},
-				{Name: "Tor Browser", PackageID: "tor-browser", CategoryType: "browser", Description: "Browser for Tor network access."},
-				{Name: "LibreWolf", PackageID: "librewolf", CategoryType: "browser", Description: "Privacy-focused Firefox fork."},
-				{Name: "Zen Browser", PackageID: "zen-browser", CategoryType: "browser", Description: "Modern Firefox-based browser.", Prerelease: true},
+				app("Google Chrome", "googlechrome", "browser", "Google's web browser."),
+				app("Opera", "opera", "browser", "Opera web browser."),
+				app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."),
+				app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."),
+				app("Waterfox", "waterfox", "browser", "Firefox-derived browser focused on customization."),
+				app("Microsoft Edge", "microsoft-edge", "browser", "Microsoft Edge browser."),
+				app("Brave Browser", "brave", "browser", "Privacy-focused Chromium browser."),
+				app("Vivaldi", "vivaldi", "browser", "Highly customizable browser."),
+				app("Tor Browser", "tor-browser", "browser", "Browser for Tor network access."),
+				app("LibreWolf", "librewolf", "browser", "Privacy-focused Firefox fork."),
+				prerelease(app("Zen Browser", "zen-browser", "browser", "Modern Firefox-based browser.")),
 			},
 		},
 		{
@@ -60,12 +90,12 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Messaging, voice chat, video meetings, and team communication apps.",
 			Apps: []Package{
-				{Name: "Telegram Desktop", PackageID: "telegram", CategoryType: "communication", Description: "Telegram desktop messenger."},
-				{Name: "Signal", PackageID: "signal", CategoryType: "communication", Description: "Private messaging desktop app."},
-				{Name: "Element", PackageID: "element-desktop", CategoryType: "communication", Description: "Matrix-based secure chat client."},
-				{Name: "Zoom", PackageID: "zoom", CategoryType: "communication", Description: "Video meetings and conferencing app."},
-				{Name: "Microsoft Teams", PackageID: "microsoft-teams", CategoryType: "communication", Description: "Microsoft team chat and meetings app."},
-				{Name: "Dorion", PackageID: "dorion", CategoryType: "communication", Description: "Lightweight alternative Discord client."},
+				app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."),
+				app("Signal", "signal", "communication", "Private messaging desktop app."),
+				app("Element", "element-desktop", "communication", "Matrix-based secure chat client."),
+				app("Zoom", "zoom", "communication", "Video meetings and conferencing app."),
+				app("Microsoft Teams", "microsoft-teams", "communication", "Microsoft team chat and meetings app."),
+				app("Dorion", "dorion", "communication", "Lightweight alternative Discord client."),
 			},
 		},
 		{
@@ -78,15 +108,15 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Code editors and development workspaces.",
 					Apps: []Package{
-						{Name: "Visual Studio Code", PackageID: "vscode", CategoryType: "editor", Description: "Code editor with extensions and integrated tools."},
-						{Name: "Zed", PackageID: "zed-editor", CategoryType: "editor", Description: "Fast collaborative code editor."},
-						{Name: "Sublime Text", PackageID: "sublimetext4", CategoryType: "editor", Description: "Fast text and code editor."},
-						{Name: "Neovim", PackageID: "neovim", CategoryType: "editor", Description: "Terminal-based code editor. Run with nvim."},
-						{Name: "Helix", PackageID: "helix", CategoryType: "editor", Description: "Terminal-based code editor. Run with hx."},
-						{Name: "JetBrains Toolbox", PackageID: "jetbrainstoolbox", CategoryType: "editor", Description: "JetBrains IDE manager."},
-						{Name: "IntelliJ IDEA Community", PackageID: "intellijidea-community", CategoryType: "editor", Description: "JetBrains Java and JVM IDE."},
-						{Name: "PyCharm Community", PackageID: "pycharm-community", CategoryType: "editor", Description: "JetBrains Python IDE."},
-						{Name: "Android Studio", PackageID: "androidstudio", CategoryType: "editor", Description: "Android app development IDE."},
+						app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."),
+						app("Zed", "zed-editor", "editor", "Fast collaborative code editor."),
+						app("Sublime Text", "sublimetext4", "editor", "Fast text and code editor."),
+						cli("Neovim", "neovim", "editor", "Terminal-based code editor. Run with nvim."),
+						cli("Helix", "helix", "editor", "Terminal-based code editor. Run with hx."),
+						app("JetBrains Toolbox", "jetbrainstoolbox", "editor", "JetBrains IDE manager."),
+						app("IntelliJ IDEA Community", "intellijidea-community", "editor", "JetBrains Java and JVM IDE."),
+						app("PyCharm Community", "pycharm-community", "editor", "JetBrains Python IDE."),
+						app("Android Studio", "androidstudio", "editor", "Android app development IDE."),
 					},
 				},
 				{
@@ -94,7 +124,7 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Tools for tracking source code changes.",
 					Apps: []Package{
-						{Name: "Git", PackageID: "git", CategoryType: "version-control", Description: "Command-line version control tool. Run with git."},
+						cli("Git", "git", "version-control", "Command-line version control tool. Run with git."),
 					},
 				},
 				{
@@ -107,18 +137,18 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  ".NET runtimes and SDKs for building and running applications.",
 							Apps: []Package{
-								{Name: ".NET Runtime 10", PackageID: "dotnet-10.0-runtime", CategoryType: "runtime", Description: ".NET 10 runtime required by some Windows apps."},
-								{Name: ".NET Runtime 9", PackageID: "dotnet-9.0-runtime", CategoryType: "runtime", Description: ".NET 9 runtime required by some Windows apps."},
-								{Name: ".NET Runtime 8", PackageID: "dotnet-8.0-runtime", CategoryType: "runtime", Description: ".NET 8 runtime required by many Windows apps."},
-								{Name: ".NET Runtime 7", PackageID: "dotnet-7.0-runtime", CategoryType: "runtime", Description: ".NET 7 runtime required by some Windows apps."},
-								{Name: ".NET Runtime 6", PackageID: "dotnet-6.0-runtime", CategoryType: "runtime", Description: ".NET 6 runtime required by some Windows apps."},
-								{Name: ".NET Runtime 5", PackageID: "dotnet-5.0-runtime", CategoryType: "runtime", Description: ".NET 5 runtime required by older Windows apps."},
-								{Name: ".NET SDK 10", PackageID: "dotnet-10.0-sdk", CategoryType: "sdk", Description: ".NET 10 tools for building .NET apps."},
-								{Name: ".NET SDK 9", PackageID: "dotnet-9.0-sdk", CategoryType: "sdk", Description: ".NET 9 tools for building .NET apps."},
-								{Name: ".NET SDK 8", PackageID: "dotnet-8.0-sdk", CategoryType: "sdk", Description: ".NET 8 tools for building .NET apps."},
-								{Name: ".NET SDK 7", PackageID: "dotnet-7.0-sdk", CategoryType: "sdk", Description: ".NET 7 tools for building .NET apps."},
-								{Name: ".NET SDK 6", PackageID: "dotnet-6.0-sdk", CategoryType: "sdk", Description: ".NET 6 tools for building .NET apps."},
-								{Name: ".NET SDK 5", PackageID: "dotnet-5.0-sdk", CategoryType: "sdk", Description: ".NET 5 tools for building older .NET apps."},
+								runtimePackage(".NET Runtime 10", "dotnet-10.0-runtime", "runtime", ".NET 10 runtime required by some Windows apps."),
+								runtimePackage(".NET Runtime 9", "dotnet-9.0-runtime", "runtime", ".NET 9 runtime required by some Windows apps."),
+								runtimePackage(".NET Runtime 8", "dotnet-8.0-runtime", "runtime", ".NET 8 runtime required by many Windows apps."),
+								runtimePackage(".NET Runtime 7", "dotnet-7.0-runtime", "runtime", ".NET 7 runtime required by some Windows apps."),
+								runtimePackage(".NET Runtime 6", "dotnet-6.0-runtime", "runtime", ".NET 6 runtime required by some Windows apps."),
+								runtimePackage(".NET Runtime 5", "dotnet-5.0-runtime", "runtime", ".NET 5 runtime required by older Windows apps."),
+								runtimePackage(".NET SDK 10", "dotnet-10.0-sdk", "sdk", ".NET 10 tools for building .NET apps."),
+								runtimePackage(".NET SDK 9", "dotnet-9.0-sdk", "sdk", ".NET 9 tools for building .NET apps."),
+								runtimePackage(".NET SDK 8", "dotnet-8.0-sdk", "sdk", ".NET 8 tools for building .NET apps."),
+								runtimePackage(".NET SDK 7", "dotnet-7.0-sdk", "sdk", ".NET 7 tools for building .NET apps."),
+								runtimePackage(".NET SDK 6", "dotnet-6.0-sdk", "sdk", ".NET 6 tools for building .NET apps."),
+								runtimePackage(".NET SDK 5", "dotnet-5.0-sdk", "sdk", ".NET 5 tools for building older .NET apps."),
 							},
 						},
 						{
@@ -126,16 +156,16 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Adoptium Java runtimes and development kits.",
 							Apps: []Package{
-								{Name: "JDK 25 (Adoptium)", PackageID: "temurin25", CategoryType: "runtime", Description: "Adoptium Java Development Kit 25."},
-								{Name: "JDK 21 (Adoptium)", PackageID: "temurin21", CategoryType: "runtime", Description: "Adoptium Java Development Kit 21."},
-								{Name: "JDK 17 (Adoptium)", PackageID: "temurin17", CategoryType: "runtime", Description: "Adoptium Java Development Kit 17."},
-								{Name: "JDK 11 (Adoptium)", PackageID: "temurin11", CategoryType: "runtime", Description: "Adoptium Java Development Kit 11."},
-								{Name: "JDK 8 (Adoptium)", PackageID: "temurin8", CategoryType: "runtime", Description: "Adoptium Java Development Kit 8."},
-								{Name: "JRE 25 (Adoptium)", PackageID: "temurin25jre", CategoryType: "runtime", Description: "Adoptium Java Runtime Environment 25."},
-								{Name: "JRE 21 (Adoptium)", PackageID: "temurin21jre", CategoryType: "runtime", Description: "Adoptium Java Runtime Environment 21."},
-								{Name: "JRE 17 (Adoptium)", PackageID: "temurin17jre", CategoryType: "runtime", Description: "Adoptium Java Runtime Environment 17."},
-								{Name: "JRE 11 (Adoptium)", PackageID: "temurin11jre", CategoryType: "runtime", Description: "Adoptium Java Runtime Environment 11."},
-								{Name: "JRE 8 (Adoptium)", PackageID: "temurin8jre", CategoryType: "runtime", Description: "Adoptium Java Runtime Environment 8."},
+								runtimePackage("JDK 25 (Adoptium)", "temurin25", "runtime", "Adoptium Java Development Kit 25."),
+								runtimePackage("JDK 21 (Adoptium)", "temurin21", "runtime", "Adoptium Java Development Kit 21."),
+								runtimePackage("JDK 17 (Adoptium)", "temurin17", "runtime", "Adoptium Java Development Kit 17."),
+								runtimePackage("JDK 11 (Adoptium)", "temurin11", "runtime", "Adoptium Java Development Kit 11."),
+								runtimePackage("JDK 8 (Adoptium)", "temurin8", "runtime", "Adoptium Java Development Kit 8."),
+								runtimePackage("JRE 25 (Adoptium)", "temurin25jre", "runtime", "Adoptium Java Runtime Environment 25."),
+								runtimePackage("JRE 21 (Adoptium)", "temurin21jre", "runtime", "Adoptium Java Runtime Environment 21."),
+								runtimePackage("JRE 17 (Adoptium)", "temurin17jre", "runtime", "Adoptium Java Runtime Environment 17."),
+								runtimePackage("JRE 11 (Adoptium)", "temurin11jre", "runtime", "Adoptium Java Runtime Environment 11."),
+								runtimePackage("JRE 8 (Adoptium)", "temurin8jre", "runtime", "Adoptium Java Runtime Environment 8."),
 							},
 						},
 						{
@@ -143,7 +173,7 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Node.js runtime and package tooling.",
 							Apps: []Package{
-								{Name: "Node.js LTS", PackageID: "nodejs-lts", CategoryType: "runtime", Description: "Node.js LTS runtime and npm."},
+								runtimePackage("Node.js LTS", "nodejs-lts", "runtime", "Node.js LTS runtime and npm."),
 							},
 						},
 						{
@@ -151,7 +181,7 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Python runtime and package tools.",
 							Apps: []Package{
-								{Name: "Python 3", PackageID: "python", CategoryType: "runtime", Description: "Python runtime and package tools."},
+								runtimePackage("Python 3", "python", "runtime", "Python runtime and package tools."),
 							},
 						},
 						{
@@ -159,11 +189,11 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Compiler toolchains and build systems.",
 							Apps: []Package{
-								{Name: "Go", PackageID: "golang", CategoryType: "toolchain", Description: "Go command-line toolchain. Run with go."},
-								{Name: "Rustup", PackageID: "rustup.install", CategoryType: "toolchain", Description: "Rust command-line toolchain installer. Run with rustup."},
-								{Name: "LLVM", PackageID: "llvm", CategoryType: "toolchain", Description: "Compiler toolchain for C, C++, and LLVM-based tools."},
-								{Name: "MinGW", PackageID: "mingw", CategoryType: "toolchain", Description: "GNU compiler toolchain for Windows."},
-								{Name: "CMake", PackageID: "cmake", CategoryType: "toolchain", Description: "Command-line build configuration tool. Run with cmake."},
+								cli("Go", "golang", "toolchain", "Go command-line toolchain. Run with go."),
+								cli("Rustup", "rustup.install", "toolchain", "Rust command-line toolchain installer. Run with rustup."),
+								cli("LLVM", "llvm", "toolchain", "Compiler toolchain for C, C++, and LLVM-based tools."),
+								cli("MinGW", "mingw", "toolchain", "GNU compiler toolchain for Windows."),
+								cli("CMake", "cmake", "toolchain", "Command-line build configuration tool. Run with cmake."),
 							},
 						},
 						{
@@ -171,10 +201,10 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Microsoft Visual C++ runtime packages for legacy and current Windows applications.",
 							Apps: []Package{
-								{Name: "VC++ Redist 2010 x86/x64", PackageID: "vcredist2010", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
-								{Name: "VC++ Redist 2012 x86/x64", PackageID: "vcredist2012", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
-								{Name: "VC++ Redist 2013 x86/x64", PackageID: "vcredist2013", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
-								{Name: "VC++ Redist 2015-2022 x86/x64", PackageID: "vcredist140", CategoryType: "runtime", Description: "Microsoft runtime required by many Windows apps and games."},
+								runtimePackage("VC++ Redist 2010 x86/x64", "vcredist2010", "runtime", "Microsoft runtime required by older Windows apps and games."),
+								runtimePackage("VC++ Redist 2012 x86/x64", "vcredist2012", "runtime", "Microsoft runtime required by older Windows apps and games."),
+								runtimePackage("VC++ Redist 2013 x86/x64", "vcredist2013", "runtime", "Microsoft runtime required by older Windows apps and games."),
+								runtimePackage("VC++ Redist 2015-2022 x86/x64", "vcredist140", "runtime", "Microsoft runtime required by many Windows apps and games."),
 							},
 						},
 					},
@@ -184,13 +214,13 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Terminal emulators, shells, and command-line utilities.",
 					Apps: []Package{
-						{Name: "Windows Terminal", PackageID: "microsoft-windows-terminal", CategoryType: "terminal", Description: "Microsoft terminal app for shells and command-line tools."},
-						{Name: "PowerShell 7", PackageID: "powershell-core", CategoryType: "terminal", Description: "Command-line shell and scripting environment. Run with pwsh."},
-						{Name: "WezTerm", PackageID: "wezterm", CategoryType: "terminal", Description: "GPU-accelerated terminal emulator."},
-						{Name: "Fastfetch", PackageID: "fastfetch", CategoryType: "terminal", Description: "Command-line system information tool. Run with fastfetch."},
-						{Name: "FZF", PackageID: "fzf", CategoryType: "terminal", Description: "Command-line fuzzy finder. Run with fzf."},
-						{Name: "ripgrep", PackageID: "ripgrep", CategoryType: "terminal", Description: "Command-line search tool. Run with rg."},
-						{Name: "Codex CLI", PackageID: "codex-cli", CategoryType: "terminal", Description: "Command-line coding agent. Run with codex."},
+						app("Windows Terminal", "microsoft-windows-terminal", "terminal", "Microsoft terminal app for shells and command-line tools."),
+						cli("PowerShell 7", "powershell-core", "terminal", "Command-line shell and scripting environment. Run with pwsh."),
+						app("WezTerm", "wezterm", "terminal", "GPU-accelerated terminal emulator."),
+						cli("Fastfetch", "fastfetch", "terminal", "Command-line system information tool. Run with fastfetch."),
+						cli("FZF", "fzf", "terminal", "Command-line fuzzy finder. Run with fzf."),
+						cli("ripgrep", "ripgrep", "terminal", "Command-line search tool. Run with rg."),
+						cli("Codex CLI", "codex-cli", "terminal", "Command-line coding agent. Run with codex."),
 					},
 				},
 				{
@@ -198,7 +228,7 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Container runtimes and desktop container managers.",
 					Apps: []Package{
-						{Name: "Podman Desktop", PackageID: "podman-desktop", CategoryType: "container", Description: "Desktop manager for Podman and containers."},
+						app("Podman Desktop", "podman-desktop", "container", "Desktop manager for Podman and containers."),
 					},
 				},
 				{
@@ -206,13 +236,13 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "API clients, database clients, and local database servers.",
 					Apps: []Package{
-						{Name: "Postman", PackageID: "postman", CategoryType: "database", Description: "API development and testing client."},
-						{Name: "Bruno", PackageID: "bruno", CategoryType: "database", Description: "Git-friendly API client."},
-						{Name: "Insomnia", PackageID: "insomnia-rest-api-client", CategoryType: "database", Description: "REST, GraphQL, and API client."},
-						{Name: "DBeaver", PackageID: "dbeaver", CategoryType: "database", Description: "Universal database client."},
-						{Name: "PostgreSQL", PackageID: "postgresql", CategoryType: "database", Description: "PostgreSQL database server."},
-						{Name: "MySQL", PackageID: "mysql", CategoryType: "database", Description: "MySQL database server."},
-						{Name: "MongoDB Compass", PackageID: "mongodb-compass", CategoryType: "database", Description: "MongoDB desktop GUI client."},
+						app("Postman", "postman", "database", "API development and testing client."),
+						app("Bruno", "bruno", "database", "Git-friendly API client."),
+						app("Insomnia", "insomnia-rest-api-client", "database", "REST, GraphQL, and API client."),
+						app("DBeaver", "dbeaver", "database", "Universal database client."),
+						app("PostgreSQL", "postgresql", "database", "PostgreSQL database server."),
+						app("MySQL", "mysql", "database", "MySQL database server."),
+						app("MongoDB Compass", "mongodb-compass", "database", "MongoDB desktop GUI client."),
 					},
 				},
 			},
@@ -227,23 +257,23 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Media players, audio tools, codecs, and streaming apps.",
 					Apps: []Package{
-						{Name: "iTunes", PackageID: "itunes", CategoryType: "media", Description: "Apple media library, playback, and device sync app."},
-						{Name: "VLC", PackageID: "vlc", CategoryType: "media", Description: "Media player for video and audio."},
-						{Name: "AIMP", PackageID: "aimp", CategoryType: "media", Description: "Lightweight audio player with playlist and format support."},
-						{Name: "foobar2000", PackageID: "foobar2000", CategoryType: "media", Description: "Advanced audio player with a compact, customizable interface."},
-						{Name: "Winamp", PackageID: "winamp", CategoryType: "media", Description: "Classic music player for local audio collections."},
-						{Name: "MusicBee", PackageID: "musicbee", CategoryType: "media", Description: "Music manager and player for large local libraries."},
-						{Name: "Audacious", PackageID: "audacious", CategoryType: "media", Description: "Lightweight audio player focused on sound quality and codec support."},
-						{Name: "Audacity", PackageID: "audacity", CategoryType: "media", Description: "Audio recording and editing tool."},
-						{Name: "K-Lite Codecs", PackageID: "k-litecodecpackfull", CategoryType: "media", Description: "Codec pack for broad video and audio playback support."},
-						{Name: "GOM", PackageID: "gom-player", CategoryType: "media", Description: "Video player with wide codec and subtitle support."},
-						{Name: "mpv", PackageID: "mpvio", CategoryType: "media", Description: "Minimal, keyboard-driven media player for audio and video playback."},
-						{Name: "Spotify", PackageID: "spotify", CategoryType: "media", Description: "Music streaming desktop app."},
-						{Name: "OBS Studio", PackageID: "obs-studio", CategoryType: "media", Description: "Recording and streaming studio."},
-						{Name: "Kdenlive", PackageID: "kdenlive", CategoryType: "media", Description: "Open source video editor."},
-						{Name: "HandBrake", PackageID: "handbrake", CategoryType: "media", Description: "Video transcoder and converter."},
-						{Name: "yt-dlp", PackageID: "yt-dlp", CategoryType: "media", Description: "Command-line video downloader. Run with yt-dlp."},
-						{Name: "FFmpeg", PackageID: "ffmpeg", CategoryType: "media", Description: "Command-line audio and video toolkit. Run with ffmpeg."},
+						app("iTunes", "itunes", "media", "Apple media library, playback, and device sync app."),
+						app("VLC", "vlc", "media", "Media player for video and audio."),
+						app("AIMP", "aimp", "media", "Lightweight audio player with playlist and format support."),
+						app("foobar2000", "foobar2000", "media", "Advanced audio player with a compact, customizable interface."),
+						app("Winamp", "winamp", "media", "Classic music player for local audio collections."),
+						app("MusicBee", "musicbee", "media", "Music manager and player for large local libraries."),
+						app("Audacious", "audacious", "media", "Lightweight audio player focused on sound quality and codec support."),
+						app("Audacity", "audacity", "media", "Audio recording and editing tool."),
+						app("K-Lite Codecs", "k-litecodecpackfull", "media", "Codec pack for broad video and audio playback support."),
+						app("GOM", "gom-player", "media", "Video player with wide codec and subtitle support."),
+						app("mpv", "mpvio", "media", "Minimal, keyboard-driven media player for audio and video playback."),
+						app("Spotify", "spotify", "media", "Music streaming desktop app."),
+						app("OBS Studio", "obs-studio", "media", "Recording and streaming studio."),
+						app("Kdenlive", "kdenlive", "media", "Open source video editor."),
+						app("HandBrake", "handbrake", "media", "Video transcoder and converter."),
+						cli("yt-dlp", "yt-dlp", "media", "Command-line video downloader. Run with yt-dlp."),
+						cli("FFmpeg", "ffmpeg", "media", "Command-line audio and video toolkit. Run with ffmpeg."),
 					},
 				},
 				{
@@ -251,20 +281,20 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Image editors, viewers, screenshots, illustration, and 3D tools.",
 					Apps: []Package{
-						{Name: "Krita", PackageID: "krita", CategoryType: "graphics", Description: "Digital painting and illustration app."},
-						{Name: "Blender", PackageID: "blender", CategoryType: "graphics", Description: "3D creation suite for modeling, rendering, and animation."},
-						{Name: "Paint.NET", PackageID: "paint.net", CategoryType: "graphics", Description: "Lightweight image editor for Windows."},
-						{Name: "GIMP", PackageID: "gimp", CategoryType: "graphics", Description: "Open source image editor."},
-						{Name: "IrfanView", PackageID: "irfanview", CategoryType: "graphics", Description: "Fast image viewer and basic editor."},
-						{Name: "XnView", PackageID: "xnview", CategoryType: "graphics", Description: "Image viewer and organizer."},
-						{Name: "Inkscape", PackageID: "inkscape", CategoryType: "graphics", Description: "Vector graphics editor."},
-						{Name: "FastStone Image Viewer", PackageID: "fsviewer", CategoryType: "graphics", Description: "Image browser, converter, and editor."},
-						{Name: "Greenshot", PackageID: "greenshot", CategoryType: "graphics", Description: "Screenshot tool with annotation support."},
-						{Name: "Lightshot", PackageID: "lightshot", CategoryType: "graphics", Description: "Simple screenshot capture and sharing tool."},
-						{Name: "ImageGlass", PackageID: "imageglass", CategoryType: "graphics", Description: "Modern image viewer."},
-						{Name: "ShareX", PackageID: "sharex", CategoryType: "graphics", Description: "Screenshot, screen capture, and sharing tool."},
-						{Name: "ScreenToGif", PackageID: "screentogif", CategoryType: "graphics", Description: "Screen, webcam, and sketchboard recorder."},
-						{Name: "Flameshot", PackageID: "flameshot", CategoryType: "graphics", Description: "Screenshot tool with annotation features."},
+						app("Krita", "krita", "graphics", "Digital painting and illustration app."),
+						app("Blender", "blender", "graphics", "3D creation suite for modeling, rendering, and animation."),
+						app("Paint.NET", "paint.net", "graphics", "Lightweight image editor for Windows."),
+						app("GIMP", "gimp", "graphics", "Open source image editor."),
+						app("IrfanView", "irfanview", "graphics", "Fast image viewer and basic editor."),
+						app("XnView", "xnview", "graphics", "Image viewer and organizer."),
+						app("Inkscape", "inkscape", "graphics", "Vector graphics editor."),
+						app("FastStone Image Viewer", "fsviewer", "graphics", "Image browser, converter, and editor."),
+						app("Greenshot", "greenshot", "graphics", "Screenshot tool with annotation support."),
+						app("Lightshot", "lightshot", "graphics", "Simple screenshot capture and sharing tool."),
+						app("ImageGlass", "imageglass", "graphics", "Modern image viewer."),
+						app("ShareX", "sharex", "graphics", "Screenshot, screen capture, and sharing tool."),
+						app("ScreenToGif", "screentogif", "graphics", "Screen, webcam, and sketchboard recorder."),
+						app("Flameshot", "flameshot", "graphics", "Screenshot tool with annotation features."),
 					},
 				},
 				{
@@ -272,9 +302,9 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "CD, DVD, and image burning utilities.",
 					Apps: []Package{
-						{Name: "ImgBurn", PackageID: "imgburn", CategoryType: "disc", Description: "Disc image and optical media burning tool."},
-						{Name: "CDBurnerXP", PackageID: "cdburnerxp", CategoryType: "disc", Description: "CD, DVD, Blu-ray, and ISO burning utility."},
-						{Name: "InfraRecorder", PackageID: "infrarecorder", CategoryType: "disc", Description: "Open source CD and DVD burning utility."},
+						app("ImgBurn", "imgburn", "disc", "Disc image and optical media burning tool."),
+						app("CDBurnerXP", "cdburnerxp", "disc", "CD, DVD, Blu-ray, and ISO burning utility."),
+						app("InfraRecorder", "infrarecorder", "disc", "Open source CD and DVD burning utility."),
 					},
 				},
 			},
@@ -284,15 +314,15 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Game launchers and gaming communication tools.",
 			Apps: []Package{
-				{Name: "Steam", PackageID: "steam", CategoryType: "gaming", Description: "Steam game launcher and store."},
-				{Name: "Epic Games Launcher", PackageID: "epicgameslauncher", CategoryType: "gaming", Description: "Epic Games Store launcher."},
-				{Name: "Heroic Games Launcher", PackageID: "heroic-games-launcher", CategoryType: "gaming", Description: "Open source launcher for Epic, GOG, and Amazon games."},
-				{Name: "Prism Launcher", PackageID: "prismlauncher", CategoryType: "gaming", Description: "Minecraft launcher for multiple instances and modded setups."},
-				{Name: "Discord", PackageID: "discord", CategoryType: "gaming", Description: "Voice and chat app for communities."},
-				{Name: "Parsec", PackageID: "parsec", CategoryType: "gaming", Description: "Low-latency remote desktop and game streaming app."},
-				{Name: "Moonlight", PackageID: "moonlight", CategoryType: "gaming", Description: "GameStream client for remote gaming."},
-				{Name: "Sunshine", PackageID: "sunshine", CategoryType: "gaming", Description: "Self-hosted game streaming host."},
-				{Name: "MSI Afterburner", PackageID: "msiafterburner", CategoryType: "gaming", Description: "GPU tuning and monitoring utility."},
+				app("Steam", "steam", "gaming", "Steam game launcher and store."),
+				app("Epic Games Launcher", "epicgameslauncher", "gaming", "Epic Games Store launcher."),
+				app("Heroic Games Launcher", "heroic-games-launcher", "gaming", "Open source launcher for Epic, GOG, and Amazon games."),
+				app("Prism Launcher", "prismlauncher", "gaming", "Minecraft launcher for multiple instances and modded setups."),
+				app("Discord", "discord", "gaming", "Voice and chat app for communities."),
+				app("Parsec", "parsec", "gaming", "Low-latency remote desktop and game streaming app."),
+				app("Moonlight", "moonlight", "gaming", "GameStream client for remote gaming."),
+				app("Sunshine", "sunshine", "gaming", "Self-hosted game streaming host."),
+				app("MSI Afterburner", "msiafterburner", "gaming", "GPU tuning and monitoring utility."),
 			},
 		},
 		{
@@ -305,15 +335,15 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Remote desktop and VNC tools.",
 					Apps: []Package{
-						{Name: "AnyDesk", PackageID: "anydesk", CategoryType: "remote", Description: "Remote desktop access tool."},
-						{Name: "TeamViewer", PackageID: "teamviewer", CategoryType: "remote", Description: "Remote access and support tool."},
-						{Name: "RealVNC Server", PackageID: "vnc-connect", CategoryType: "remote", Description: "RealVNC server for remote desktop access."},
-						{Name: "RealVNC Viewer", PackageID: "vnc-viewer", CategoryType: "remote", Description: "RealVNC viewer for connecting to VNC hosts."},
-						{Name: "TightVNC", PackageID: "tightvnc", CategoryType: "remote", Description: "VNC remote control software."},
-						{Name: "RustDesk", PackageID: "rustdesk", CategoryType: "remote", Description: "Open source remote desktop tool."},
-						{Name: "Barrier", PackageID: "barrier", CategoryType: "remote", Description: "Keyboard and mouse sharing across computers."},
-						{Name: "scrcpy", PackageID: "scrcpy", CategoryType: "remote", Description: "Android screen mirroring and control tool."},
-						{Name: "ADB Platform Tools", PackageID: "adb", CategoryType: "remote", Description: "Android command-line debugging tools. Run with adb."},
+						app("AnyDesk", "anydesk", "remote", "Remote desktop access tool."),
+						app("TeamViewer", "teamviewer", "remote", "Remote access and support tool."),
+						app("RealVNC Server", "vnc-connect", "remote", "RealVNC server for remote desktop access."),
+						app("RealVNC Viewer", "vnc-viewer", "remote", "RealVNC viewer for connecting to VNC hosts."),
+						app("TightVNC", "tightvnc", "remote", "VNC remote control software."),
+						app("RustDesk", "rustdesk", "remote", "Open source remote desktop tool."),
+						app("Barrier", "barrier", "remote", "Keyboard and mouse sharing across computers."),
+						cli("scrcpy", "scrcpy", "remote", "Android screen mirroring and control tool."),
+						cli("ADB Platform Tools", "adb", "remote", "Android command-line debugging tools. Run with adb."),
 					},
 				},
 				{
@@ -321,34 +351,34 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "File copy, cleanup, search, launchers, and system shell utilities.",
 					Apps: []Package{
-						{Name: "Everything", PackageID: "everything", CategoryType: "utility", Description: "Fast local file search tool."},
-						{Name: "TeraCopy", PackageID: "teracopy", CategoryType: "utility", Description: "File copy utility with verification and queueing."},
-						{Name: "Revo Uninstaller", PackageID: "revo-uninstaller", CategoryType: "utility", Description: "Application uninstaller and cleanup tool."},
-						{Name: "Launchy", PackageID: "launchy", CategoryType: "utility", Description: "Keyboard-driven application launcher."},
-						{Name: "WinDirStat", PackageID: "windirstat", CategoryType: "utility", Description: "Disk usage analyzer and cleanup helper."},
-						{Name: "WizTree", PackageID: "wiztree", CategoryType: "utility", Description: "Fast disk space analyzer."},
-						{Name: "Glary Utilities", PackageID: "glaryutilities-free", CategoryType: "utility", Description: "System cleanup and optimization utility."},
-						{Name: "Open-Shell", PackageID: "open-shell", CategoryType: "utility", Description: "Classic Start menu and shell enhancements."},
-						{Name: "CCleaner", PackageID: "ccleaner", CategoryType: "utility", Description: "System cleanup utility."},
-						{Name: "PowerToys", PackageID: "powertoys", CategoryType: "utility", Description: "Microsoft utilities for Windows power users."},
-						{Name: "Google Earth", PackageID: "googleearthpro", CategoryType: "utility", Description: "Desktop globe, maps, and geographic exploration app."},
-						{Name: "AutoHotkey", PackageID: "autohotkey", CategoryType: "utility", Description: "Automation and hotkey scripting tool."},
-						{Name: "Ventoy", PackageID: "ventoy", CategoryType: "utility", Description: "Multiboot USB drive creator."},
-						{Name: "Bulk Crap Uninstaller", PackageID: "bulk-crap-uninstaller", CategoryType: "utility", Description: "Bulk application uninstaller and cleanup tool."},
-						{Name: "HWiNFO64", PackageID: "hwinfo", CategoryType: "utility", Description: "Hardware information and monitoring tool."},
-						{Name: "HWMonitor", PackageID: "hwmonitor", CategoryType: "utility", Description: "Hardware sensor monitoring tool."},
-						{Name: "CPU-Z", PackageID: "cpu-z", CategoryType: "utility", Description: "CPU, motherboard, memory, and system information tool."},
-						{Name: "GPU-Z", PackageID: "gpu-z", CategoryType: "utility", Description: "Graphics card information utility."},
-						{Name: "System Informer", PackageID: "systeminformer", CategoryType: "utility", Description: "Modern process, service, and system monitor."},
-						{Name: "Process Explorer", PackageID: "procexp", CategoryType: "utility", Description: "Sysinternals process inspection tool."},
-						{Name: "Autoruns", PackageID: "autoruns", CategoryType: "utility", Description: "Sysinternals startup entry inspection tool."},
-						{Name: "TreeSize Free", PackageID: "treesizefree", CategoryType: "utility", Description: "Disk usage analyzer."},
-						{Name: "EarTrumpet", PackageID: "eartrumpet", CategoryType: "utility", Description: "Per-app volume control for Windows."},
-						{Name: "StartAllBack", PackageID: "startallback", CategoryType: "utility", Description: "Windows taskbar, Start menu, and Explorer customization."},
-						{Name: "TranslucentTB", PackageID: "translucenttb", CategoryType: "utility", Description: "Windows taskbar transparency utility."},
-						{Name: "F.lux", PackageID: "flux", CategoryType: "utility", Description: "Display color temperature adjustment tool."},
-						{Name: "Twinkle Tray", PackageID: "twinkle-tray", CategoryType: "utility", Description: "External monitor brightness control."},
-						{Name: "UniGetUI", PackageID: "unigetui", CategoryType: "utility", Description: "GUI for package managers including Chocolatey and winget."},
+						app("Everything", "everything", "utility", "Fast local file search tool."),
+						app("TeraCopy", "teracopy", "utility", "File copy utility with verification and queueing."),
+						app("Revo Uninstaller", "revo-uninstaller", "utility", "Application uninstaller and cleanup tool."),
+						app("Launchy", "launchy", "utility", "Keyboard-driven application launcher."),
+						app("WinDirStat", "windirstat", "utility", "Disk usage analyzer and cleanup helper."),
+						app("WizTree", "wiztree", "utility", "Fast disk space analyzer."),
+						app("Glary Utilities", "glaryutilities-free", "utility", "System cleanup and optimization utility."),
+						app("Open-Shell", "open-shell", "utility", "Classic Start menu and shell enhancements."),
+						app("CCleaner", "ccleaner", "utility", "System cleanup utility."),
+						app("PowerToys", "powertoys", "utility", "Microsoft utilities for Windows power users."),
+						app("Google Earth", "googleearthpro", "utility", "Desktop globe, maps, and geographic exploration app."),
+						app("AutoHotkey", "autohotkey", "utility", "Automation and hotkey scripting tool."),
+						app("Ventoy", "ventoy", "utility", "Multiboot USB drive creator."),
+						app("Bulk Crap Uninstaller", "bulk-crap-uninstaller", "utility", "Bulk application uninstaller and cleanup tool."),
+						app("HWiNFO64", "hwinfo", "utility", "Hardware information and monitoring tool."),
+						app("HWMonitor", "hwmonitor", "utility", "Hardware sensor monitoring tool."),
+						app("CPU-Z", "cpu-z", "utility", "CPU, motherboard, memory, and system information tool."),
+						app("GPU-Z", "gpu-z", "utility", "Graphics card information utility."),
+						app("System Informer", "systeminformer", "utility", "Modern process, service, and system monitor."),
+						app("Process Explorer", "procexp", "utility", "Sysinternals process inspection tool."),
+						app("Autoruns", "autoruns", "utility", "Sysinternals startup entry inspection tool."),
+						app("TreeSize Free", "treesizefree", "utility", "Disk usage analyzer."),
+						app("EarTrumpet", "eartrumpet", "utility", "Per-app volume control for Windows."),
+						app("StartAllBack", "startallback", "utility", "Windows taskbar, Start menu, and Explorer customization."),
+						app("TranslucentTB", "translucenttb", "utility", "Windows taskbar transparency utility."),
+						app("F.lux", "flux", "utility", "Display color temperature adjustment tool."),
+						app("Twinkle Tray", "twinkle-tray", "utility", "External monitor brightness control."),
+						app("UniGetUI", "unigetui", "utility", "GUI for package managers including Chocolatey and winget."),
 					},
 				},
 				{
@@ -356,9 +386,9 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Archive managers and compression tools.",
 					Apps: []Package{
-						{Name: "7-Zip", PackageID: "7zip", CategoryType: "archive", Description: "File archiver with broad format support."},
-						{Name: "WinRAR", PackageID: "winrar", CategoryType: "archive", Description: "Archive manager for RAR, ZIP, and other formats."},
-						{Name: "PeaZip", PackageID: "peazip", CategoryType: "archive", Description: "Open source archive manager."},
+						app("7-Zip", "7zip", "archive", "File archiver with broad format support."),
+						app("WinRAR", "winrar", "archive", "Archive manager for RAR, ZIP, and other formats."),
+						app("PeaZip", "peazip", "archive", "Open source archive manager."),
 					},
 				},
 				{
@@ -366,12 +396,12 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Password managers and malware removal tools.",
 					Apps: []Package{
-						{Name: "Bitwarden", PackageID: "bitwarden", CategoryType: "security", Description: "Password manager desktop app."},
-						{Name: "KeePass 2", PackageID: "keepass", CategoryType: "security", Description: "Local password manager."},
-						{Name: "Malwarebytes", PackageID: "malwarebytes", CategoryType: "security", Description: "Anti-malware scanning and cleanup tool."},
-						{Name: "VeraCrypt", PackageID: "veracrypt", CategoryType: "security", Description: "Disk and volume encryption tool."},
-						{Name: "BleachBit", PackageID: "bleachbit", CategoryType: "security", Description: "Privacy-focused cleanup utility."},
-						{Name: "SimpleWall", PackageID: "simplewall", CategoryType: "security", Description: "Windows Filtering Platform firewall control tool."},
+						app("Bitwarden", "bitwarden", "security", "Password manager desktop app."),
+						app("KeePass 2", "keepass", "security", "Local password manager."),
+						app("Malwarebytes", "malwarebytes", "security", "Anti-malware scanning and cleanup tool."),
+						app("VeraCrypt", "veracrypt", "security", "Disk and volume encryption tool."),
+						app("BleachBit", "bleachbit", "security", "Privacy-focused cleanup utility."),
+						app("SimpleWall", "simplewall", "security", "Windows Filtering Platform firewall control tool."),
 					},
 				},
 				{
@@ -379,17 +409,17 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "FTP, SSH, torrent, and file transfer clients.",
 					Apps: []Package{
-						{Name: "FileZilla", PackageID: "filezilla", CategoryType: "network", Description: "FTP, FTPS, and SFTP client."},
-						{Name: "WinSCP", PackageID: "winscp", CategoryType: "network", Description: "SFTP, SCP, FTP, and WebDAV file transfer client."},
-						{Name: "PuTTY", PackageID: "putty", CategoryType: "network", Description: "SSH and Telnet client."},
-						{Name: "qBittorrent", PackageID: "qbittorrent", CategoryType: "network", Description: "BitTorrent client."},
-						{Name: "Tailscale", PackageID: "tailscale", CategoryType: "network", Description: "Mesh VPN client."},
-						{Name: "WireGuard", PackageID: "wireguard", CategoryType: "network", Description: "WireGuard VPN client."},
-						{Name: "ZeroTier", PackageID: "zerotier-one", CategoryType: "network", Description: "Virtual networking and mesh VPN client."},
-						{Name: "Wireshark", PackageID: "wireshark", CategoryType: "network", Description: "Network protocol analyzer."},
-						{Name: "Nmap", PackageID: "nmap", CategoryType: "network", Description: "Network discovery and security scanner."},
-						{Name: "Syncthing", PackageID: "syncthing", CategoryType: "network", Description: "Continuous file synchronization tool."},
-						{Name: "LocalSend", PackageID: "localsend", CategoryType: "network", Description: "Local network file sharing app."},
+						app("FileZilla", "filezilla", "network", "FTP, FTPS, and SFTP client."),
+						app("WinSCP", "winscp", "network", "SFTP, SCP, FTP, and WebDAV file transfer client."),
+						app("PuTTY", "putty", "network", "SSH and Telnet client."),
+						app("qBittorrent", "qbittorrent", "network", "BitTorrent client."),
+						app("Tailscale", "tailscale", "network", "Mesh VPN client."),
+						app("WireGuard", "wireguard", "network", "WireGuard VPN client."),
+						app("ZeroTier", "zerotier-one", "network", "Virtual networking and mesh VPN client."),
+						app("Wireshark", "wireshark", "network", "Network protocol analyzer."),
+						cli("Nmap", "nmap", "network", "Network discovery and security scanner."),
+						app("Syncthing", "syncthing", "network", "Continuous file synchronization tool."),
+						app("LocalSend", "localsend", "network", "Local network file sharing app."),
 					},
 				},
 				{
@@ -397,15 +427,15 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Cloud sync, office suites, notes, and document readers.",
 					Apps: []Package{
-						{Name: "Dropbox", PackageID: "dropbox", CategoryType: "productivity", Description: "Cloud file sync desktop app."},
-						{Name: "Google Drive", PackageID: "googledrive", CategoryType: "productivity", Description: "Google Drive desktop sync app."},
-						{Name: "LibreOffice", PackageID: "libreoffice-fresh", CategoryType: "productivity", Description: "Open source office suite."},
-						{Name: "OpenOffice", PackageID: "openoffice", CategoryType: "productivity", Description: "Apache OpenOffice productivity suite."},
-						{Name: "Foxit Reader", PackageID: "foxitreader", CategoryType: "productivity", Description: "PDF reader."},
-						{Name: "Evernote", PackageID: "evernote", CategoryType: "productivity", Description: "Notes and organization app."},
-						{Name: "OnlyOffice", PackageID: "onlyoffice", CategoryType: "productivity", Description: "Office suite for documents, spreadsheets, and presentations."},
-						{Name: "SumatraPDF", PackageID: "sumatrapdf", CategoryType: "productivity", Description: "Lightweight PDF and ebook reader."},
-						{Name: "Claude", PackageID: "claude", CategoryType: "productivity", Description: "Anthropic Claude desktop app."},
+						app("Dropbox", "dropbox", "productivity", "Cloud file sync desktop app."),
+						app("Google Drive", "googledrive", "productivity", "Google Drive desktop sync app."),
+						app("LibreOffice", "libreoffice-fresh", "productivity", "Open source office suite."),
+						app("OpenOffice", "openoffice", "productivity", "Apache OpenOffice productivity suite."),
+						app("Foxit Reader", "foxitreader", "productivity", "PDF reader."),
+						app("Evernote", "evernote", "productivity", "Notes and organization app."),
+						app("OnlyOffice", "onlyoffice", "productivity", "Office suite for documents, spreadsheets, and presentations."),
+						app("SumatraPDF", "sumatrapdf", "productivity", "Lightweight PDF and ebook reader."),
+						app("Claude", "claude", "productivity", "Anthropic Claude desktop app."),
 					},
 				},
 				{
@@ -413,9 +443,9 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Text editors and code-oriented desktop apps.",
 					Apps: []Package{
-						{Name: "Notepad++", PackageID: "notepadplusplus", CategoryType: "editor", Description: "Fast text and source code editor."},
-						{Name: "Cursor", PackageID: "cursoride", CategoryType: "editor", Description: "AI-powered code editor based on VS Code."},
-						{Name: "WinMerge", PackageID: "winmerge", CategoryType: "editor", Description: "File and folder comparison tool."},
+						app("Notepad++", "notepadplusplus", "editor", "Fast text and source code editor."),
+						app("Cursor", "cursoride", "editor", "AI-powered code editor based on VS Code."),
+						app("WinMerge", "winmerge", "editor", "File and folder comparison tool."),
 					},
 				},
 				{
@@ -423,8 +453,8 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "USB imaging, virtual machines, and installer utilities.",
 					Apps: []Package{
-						{Name: "balenaEtcher", PackageID: "etcher", CategoryType: "virtualization", Description: "Bootable USB and SD card image writer."},
-						{Name: "VirtualBox", PackageID: "virtualbox", CategoryType: "virtualization", Description: "Virtual machine platform."},
+						app("balenaEtcher", "etcher", "virtualization", "Bootable USB and SD card image writer."),
+						app("VirtualBox", "virtualbox", "virtualization", "Virtual machine platform."),
 					},
 				},
 			},
@@ -444,27 +474,10 @@ func normalizeCategories(categories []Category) {
 			if app.Category == "" {
 				app.Category = app.CategoryType
 			}
-			if app.Type == "" {
-				app.Type = inferPackageType(*app)
-			}
 			if app.Source == "" {
 				app.Source = PackageSourceChocolatey
 			}
 			app.Verified = true
 		}
 	}
-}
-
-func inferPackageType(app Package) PackageType {
-	switch app.CategoryType {
-	case "runtime", "sdk":
-		return PackageTypeRuntime
-	}
-
-	switch app.PackageID {
-	case "helix", "neovim", "git", "golang", "rustup.install", "llvm", "mingw", "cmake", "powershell-core", "fastfetch", "fzf", "ripgrep", "codex-cli", "yt-dlp", "ffmpeg", "adb", "scrcpy", "nmap":
-		return PackageTypeCLITool
-	}
-
-	return PackageTypeApplication
 }

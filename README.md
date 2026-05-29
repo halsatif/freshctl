@@ -67,6 +67,18 @@ go mod tidy
 go build -o freshctl.exe .
 ```
 
+Regenerate the website package catalog after editing `internal/catalog/catalog.go`:
+
+```powershell
+go run ./cmd/export-catalog
+```
+
+Validate the catalog before releases or catalog updates:
+
+```powershell
+go run ./cmd/check-catalog
+```
+
 ---
 
 ## Run

@@ -263,15 +263,19 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.searchFocused {
 		switch msg.String() {
+		case "up", "k":
+			m.moveCatalogCursor(-1)
+		case "down", "j":
+			m.moveCatalogCursor(1)
 		case "enter":
-			m.searchFocused = false
+			m.selectCurrentApp()
 		case "esc":
 			m.searchFocused = false
-			if m.catalogMode == catalogModeFull {
-				m.searchQuery = ""
-				m.catalogCursor = 0
-				m.catalogScroll = 0
-			}
+			m.searchQuery = ""
+			m.catalogCursor = 0
+			m.catalogScroll = 0
+		case " ":
+			m.toggleCurrentApp()
 		case "backspace":
 			if len(m.searchQuery) > 0 {
 				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
@@ -821,8 +825,17 @@ func (m *Model) toggleCurrentApp() {
 	m.selected[app.PackageID] = !m.selected[app.PackageID]
 }
 
+func (m *Model) selectCurrentApp() {
+	app, ok := m.currentPackageSelection()
+	if !ok {
+		return
+	}
+
+	m.selected[app.PackageID] = true
+}
+
 func (m Model) catalogItemCount() int {
-	if m.catalogMode == catalogModeFull {
+	if m.catalogMode == catalogModeFull || m.searchActive() {
 		return len(m.filteredFullCatalogItems())
 	}
 	return len(m.currentCategories()) + len(m.currentApps())
@@ -876,7 +889,7 @@ func (m Model) catalogVisibleRows() int {
 }
 
 func (m Model) currentPackageSelection() (catalog.Package, bool) {
-	if m.catalogMode == catalogModeFull {
+	if m.catalogMode == catalogModeFull || m.searchActive() {
 		items := m.filteredFullCatalogItems()
 		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
 			return catalog.Package{}, false
@@ -933,17 +946,76 @@ func (m Model) filteredFullCatalogItems() []fullCatalogItem {
 
 	filtered := make([]fullCatalogItem, 0, len(items))
 	for _, item := range items {
-		haystack := strings.ToLower(strings.Join([]string{
-			item.Package.Name,
-			item.Package.PackageID,
-			item.Package.Description,
-			item.Path,
-		}, " "))
-		if strings.Contains(haystack, query) {
+		if matchesPackageSearch(item, query) {
 			filtered = append(filtered, item)
 		}
 	}
 	return filtered
+}
+
+func (m Model) searchActive() bool {
+	return m.searchFocused || strings.TrimSpace(m.searchQuery) != ""
+}
+
+func matchesPackageSearch(item fullCatalogItem, query string) bool {
+	if query == "" {
+		return true
+	}
+
+	fields := []string{
+		item.Package.Name,
+		item.Package.PackageID,
+		item.Package.Description,
+	}
+	for _, field := range fields {
+		text := strings.ToLower(field)
+		if strings.Contains(text, query) || strings.Contains(compactSearchText(text), query) || isSubsequence(query, text) {
+			return true
+		}
+	}
+	return strings.Contains(packageInitials(item.Package.Name), query)
+}
+
+func compactSearchText(text string) string {
+	var builder strings.Builder
+	for _, r := range text {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
+}
+
+func packageInitials(name string) string {
+	var builder strings.Builder
+	start := true
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			if start {
+				builder.WriteRune(r)
+				start = false
+			}
+			continue
+		}
+		start = true
+	}
+	return builder.String()
+}
+
+func isSubsequence(query, text string) bool {
+	if len(query) < 2 {
+		return false
+	}
+	index := 0
+	for _, r := range text {
+		if rune(query[index]) == r {
+			index++
+			if index == len(query) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (m Model) selectedApps() []catalog.Package {

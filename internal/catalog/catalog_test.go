@@ -35,15 +35,18 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 	apps := packagesByID(Default())
 
 	examples := map[string]PackageType{
-		"vscode":       PackageTypeApplication,
-		"helix":        PackageTypeCLITool,
-		"ripgrep":      PackageTypeCLITool,
-		"golang":       PackageTypeCLITool,
-		"cmake":        PackageTypeCLITool,
-		"wezterm":      PackageTypeApplication,
-		"vcredist140":  PackageTypeRuntime,
-		"nodejs-lts":   PackageTypeRuntime,
-		"googlechrome": PackageTypeApplication,
+		"vscode":                     PackageTypeApplication,
+		"microsoft-windows-terminal": PackageTypeApplication,
+		"helix":                      PackageTypeCLITool,
+		"ripgrep":                    PackageTypeCLITool,
+		"fzf":                        PackageTypeCLITool,
+		"golang":                     PackageTypeCLITool,
+		"cmake":                      PackageTypeCLITool,
+		"wezterm":                    PackageTypeApplication,
+		"vcredist140":                PackageTypeRuntime,
+		"dotnet-8.0-runtime":         PackageTypeRuntime,
+		"nodejs-lts":                 PackageTypeRuntime,
+		"googlechrome":               PackageTypeApplication,
 	}
 
 	for id, want := range examples {

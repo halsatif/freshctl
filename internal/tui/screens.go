@@ -59,7 +59,7 @@ func (m Model) viewCatalog() string {
 	contentWidth := pageWidth(m.width)
 	itemLines := m.catalogListLines()
 	if len(itemLines) == 0 {
-		itemLines = append(itemLines, "  "+mutedStyle.Render("No matches."))
+		itemLines = append(itemLines, "  "+mutedStyle.Render("No packages found."), "  "+mutedStyle.Render("Try a different search term."))
 	}
 
 	panelHeight := m.catalogPanelHeight()
@@ -78,12 +78,15 @@ func (m Model) viewCatalog() string {
 		mutedStyle.Render(fmt.Sprintf("%d selected", len(m.selectedApps()))),
 		mutedStyle.Render(m.catalogHeaderLine()),
 	}
-	if m.searchFocused {
+	if m.searchActive() {
 		query := m.searchQuery
 		if query == "" {
 			query = "type to search"
 		}
-		parts = append(parts, mutedStyle.Render("Search: "+query+" (placeholder)"))
+		parts = append(parts,
+			mutedStyle.Render("Search: "+query),
+			mutedStyle.Render(fmt.Sprintf("Results: %d packages", len(m.filteredFullCatalogItems()))),
+		)
 	}
 	parts = append(parts,
 		"",
@@ -92,7 +95,9 @@ func (m Model) viewCatalog() string {
 	if m.notice != "" {
 		parts = append(parts, "", errorStyle.Render(m.notice))
 	}
-	if m.catalogMode == catalogModeFull {
+	if m.searchActive() {
+		parts = append(parts, "", hotkeyBar("up/down move", "enter select", "backspace edit", "esc clear", "q quit"))
+	} else if m.catalogMode == catalogModeFull {
 		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "i install", "esc back/clear", "q quit"))
 	} else {
 		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "esc back", "i install", "q quit"))
@@ -102,7 +107,7 @@ func (m Model) viewCatalog() string {
 }
 
 func (m Model) catalogListLines() []string {
-	if m.catalogMode == catalogModeFull {
+	if m.catalogMode == catalogModeFull || m.searchActive() {
 		return m.fullCatalogListLines()
 	}
 	return m.categoryCatalogListLines()
@@ -528,7 +533,7 @@ func (m Model) installNameWidth(width int) int {
 }
 
 func (m Model) catalogDetailsPanel(width int) string {
-	if m.catalogMode == catalogModeFull {
+	if m.catalogMode == catalogModeFull || m.searchActive() {
 		items := m.filteredFullCatalogItems()
 		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
 			return fitDetailsLines([]string{"No item selected."}, width)

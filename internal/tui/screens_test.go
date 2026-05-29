@@ -399,6 +399,147 @@ func TestFullCatalogSearchFiltersByPackageMetadata(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchMatchesCaseInsensitiveName(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "fireFOX",
+		selected:    map[string]bool{},
+	}
+
+	items := model.filteredFullCatalogItems()
+	if !containsPackage(items, "firefox") {
+		t.Fatalf("search should match package name case-insensitively, got %#v", itemNames(items))
+	}
+}
+
+func TestCatalogSearchMatchesDescription(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "runtime",
+		selected:    map[string]bool{},
+	}
+
+	items := model.filteredFullCatalogItems()
+	if !containsPackage(items, "vcredist140") || !containsPackage(items, "dotnet-8.0-runtime") {
+		t.Fatalf("search should match runtime descriptions, got %#v", itemNames(items))
+	}
+}
+
+func TestCatalogSearchMatchesPackageID(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "codex-cli",
+		selected:    map[string]bool{},
+	}
+
+	items := model.filteredFullCatalogItems()
+	if len(items) != 1 || items[0].Package.PackageID != "codex-cli" {
+		t.Fatalf("search should match package id, got %#v", itemNames(items))
+	}
+}
+
+func TestCatalogSearchMatchesFuzzyInitialsAndSubsequence(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "vsc",
+		selected:    map[string]bool{},
+	}
+	if !containsPackage(model.filteredFullCatalogItems(), "vscode") {
+		t.Fatalf("search query vsc should find VS Code")
+	}
+
+	model.searchQuery = "rg"
+	if !containsPackage(model.filteredFullCatalogItems(), "ripgrep") {
+		t.Fatalf("search query rg should find ripgrep")
+	}
+}
+
+func TestCatalogSearchClearsWithEscape(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeCategories,
+		catalogPath:   []int{3, 1},
+		searchFocused: true,
+		searchQuery:   "code",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.searchFocused || got.searchQuery != "" {
+		t.Fatalf("esc should clear active search, focused=%v query=%q", got.searchFocused, got.searchQuery)
+	}
+	if got.screen != screenCatalog || got.catalogMode != catalogModeCategories || got.currentBreadcrumb() != "Catalog > Media > Images & Graphics" {
+		t.Fatalf("esc should return to normal category browsing, got screen=%v mode=%v path=%q", got.screen, got.catalogMode, got.currentBreadcrumb())
+	}
+}
+
+func TestCatalogSearchEnterSelectsPackage(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeCategories,
+		searchFocused: true,
+		searchQuery:   "discord",
+		selected:      map[string]bool{"discord": true},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+	if !got.selected["discord"] {
+		t.Fatalf("enter should keep highlighted search result selected")
+	}
+	if !got.searchFocused {
+		t.Fatalf("enter should keep search active after selecting")
+	}
+}
+
+func TestCatalogSearchTypingAppendsLetters(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "d",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	got := updated.(Model)
+	if got.searchQuery != "di" {
+		t.Fatalf("typing while search is focused should append letters, got %q", got.searchQuery)
+	}
+}
+
+func TestCatalogSearchEmptyResultMessage(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "definitely-not-a-package",
+		selected:      map[string]bool{},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "No packages found.") || !strings.Contains(view, "Try a different search term.") {
+		t.Fatalf("empty search should show friendly message, got:\n%s", view)
+	}
+}
+
 func TestFullCatalogItemsAreSortedByName(t *testing.T) {
 	model := Model{
 		categories: catalog.Default(),
@@ -469,7 +610,7 @@ func TestFullCatalogTruncatesLongNamesInsidePane(t *testing.T) {
 	}
 }
 
-func TestEnterDeactivatesCatalogSearch(t *testing.T) {
+func TestBackspaceEditsCatalogSearch(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
 		width:         100,
@@ -481,14 +622,31 @@ func TestEnterDeactivatesCatalogSearch(t *testing.T) {
 		selected:      map[string]bool{},
 	}
 
-	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyBackspace})
 	got := updated.(Model)
-	if got.searchFocused {
-		t.Fatal("enter should deactivate active catalog search")
+	if !got.searchFocused {
+		t.Fatal("backspace should keep search active")
 	}
-	if got.searchQuery != "python" {
-		t.Fatalf("enter should keep the current search query, got %q", got.searchQuery)
+	if got.searchQuery != "pytho" {
+		t.Fatalf("backspace should edit search query, got %q", got.searchQuery)
 	}
+}
+
+func containsPackage(items []fullCatalogItem, packageID string) bool {
+	for _, item := range items {
+		if item.Package.PackageID == packageID {
+			return true
+		}
+	}
+	return false
+}
+
+func itemNames(items []fullCatalogItem) []string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Package.Name)
+	}
+	return names
 }
 
 func stripANSI(value string) string {
