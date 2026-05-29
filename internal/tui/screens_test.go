@@ -593,6 +593,28 @@ func TestCatalogSearchTypingAppendsLetters(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchSpaceTypesSpaceWhileFocused(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "visual",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeySpace})
+	got := updated.(Model)
+	if got.searchQuery != "visual " {
+		t.Fatalf("space should be typed into focused search input, got %q", got.searchQuery)
+	}
+	if len(got.selected) != 0 {
+		t.Fatalf("space should not select packages while search input is focused, got %#v", got.selected)
+	}
+}
+
 func TestCatalogSearchEmptyResultMessage(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,

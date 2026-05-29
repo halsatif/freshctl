@@ -275,7 +275,9 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.catalogCursor = 0
 			m.catalogScroll = 0
 		case " ":
-			m.toggleCurrentApp()
+			m.searchQuery += " "
+			m.clampCatalogCursor()
+			m.ensureCatalogCursorVisible()
 		case "backspace":
 			if len(m.searchQuery) > 0 {
 				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
