@@ -81,8 +81,8 @@ func Default() []Category {
 						{Name: "Visual Studio Code", PackageID: "vscode", CategoryType: "editor", Description: "Code editor with extensions and integrated tools."},
 						{Name: "Zed", PackageID: "zed-editor", CategoryType: "editor", Description: "Fast collaborative code editor."},
 						{Name: "Sublime Text", PackageID: "sublimetext4", CategoryType: "editor", Description: "Fast text and code editor."},
-						{Name: "Neovim", PackageID: "neovim", CategoryType: "editor", Description: "Modern Vim-based text editor."},
-						{Name: "Helix", PackageID: "helix", CategoryType: "editor", Description: "Terminal code editor. Run with hx."},
+						{Name: "Neovim", PackageID: "neovim", CategoryType: "editor", Description: "Terminal-based code editor. Run with nvim."},
+						{Name: "Helix", PackageID: "helix", CategoryType: "editor", Description: "Terminal-based code editor. Run with hx."},
 						{Name: "JetBrains Toolbox", PackageID: "jetbrainstoolbox", CategoryType: "editor", Description: "JetBrains IDE manager."},
 						{Name: "IntelliJ IDEA Community", PackageID: "intellijidea-community", CategoryType: "editor", Description: "JetBrains Java and JVM IDE."},
 						{Name: "PyCharm Community", PackageID: "pycharm-community", CategoryType: "editor", Description: "JetBrains Python IDE."},
@@ -94,7 +94,7 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Tools for tracking source code changes.",
 					Apps: []Package{
-						{Name: "Git", PackageID: "git", CategoryType: "version-control", Description: "Distributed version control system."},
+						{Name: "Git", PackageID: "git", CategoryType: "version-control", Description: "Command-line version control tool. Run with git."},
 					},
 				},
 				{
@@ -107,18 +107,18 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  ".NET runtimes and SDKs for building and running applications.",
 							Apps: []Package{
-								{Name: ".NET Runtime 10", PackageID: "dotnet-10.0-runtime", CategoryType: "runtime", Description: ".NET 10 runtime."},
-								{Name: ".NET Runtime 9", PackageID: "dotnet-9.0-runtime", CategoryType: "runtime", Description: ".NET 9 runtime."},
-								{Name: ".NET Runtime 8", PackageID: "dotnet-8.0-runtime", CategoryType: "runtime", Description: ".NET 8 runtime."},
-								{Name: ".NET Runtime 7", PackageID: "dotnet-7.0-runtime", CategoryType: "runtime", Description: ".NET 7 runtime."},
-								{Name: ".NET Runtime 6", PackageID: "dotnet-6.0-runtime", CategoryType: "runtime", Description: ".NET 6 runtime."},
-								{Name: ".NET Runtime 5", PackageID: "dotnet-5.0-runtime", CategoryType: "runtime", Description: ".NET 5 runtime."},
-								{Name: ".NET SDK 10", PackageID: "dotnet-10.0-sdk", CategoryType: "sdk", Description: ".NET 10 SDK."},
-								{Name: ".NET SDK 9", PackageID: "dotnet-9.0-sdk", CategoryType: "sdk", Description: ".NET 9 SDK."},
-								{Name: ".NET SDK 8", PackageID: "dotnet-8.0-sdk", CategoryType: "sdk", Description: ".NET 8 SDK."},
-								{Name: ".NET SDK 7", PackageID: "dotnet-7.0-sdk", CategoryType: "sdk", Description: ".NET 7 SDK."},
-								{Name: ".NET SDK 6", PackageID: "dotnet-6.0-sdk", CategoryType: "sdk", Description: ".NET 6 SDK."},
-								{Name: ".NET SDK 5", PackageID: "dotnet-5.0-sdk", CategoryType: "sdk", Description: ".NET 5 SDK."},
+								{Name: ".NET Runtime 10", PackageID: "dotnet-10.0-runtime", CategoryType: "runtime", Description: ".NET 10 runtime required by some Windows apps."},
+								{Name: ".NET Runtime 9", PackageID: "dotnet-9.0-runtime", CategoryType: "runtime", Description: ".NET 9 runtime required by some Windows apps."},
+								{Name: ".NET Runtime 8", PackageID: "dotnet-8.0-runtime", CategoryType: "runtime", Description: ".NET 8 runtime required by many Windows apps."},
+								{Name: ".NET Runtime 7", PackageID: "dotnet-7.0-runtime", CategoryType: "runtime", Description: ".NET 7 runtime required by some Windows apps."},
+								{Name: ".NET Runtime 6", PackageID: "dotnet-6.0-runtime", CategoryType: "runtime", Description: ".NET 6 runtime required by some Windows apps."},
+								{Name: ".NET Runtime 5", PackageID: "dotnet-5.0-runtime", CategoryType: "runtime", Description: ".NET 5 runtime required by older Windows apps."},
+								{Name: ".NET SDK 10", PackageID: "dotnet-10.0-sdk", CategoryType: "sdk", Description: ".NET 10 tools for building .NET apps."},
+								{Name: ".NET SDK 9", PackageID: "dotnet-9.0-sdk", CategoryType: "sdk", Description: ".NET 9 tools for building .NET apps."},
+								{Name: ".NET SDK 8", PackageID: "dotnet-8.0-sdk", CategoryType: "sdk", Description: ".NET 8 tools for building .NET apps."},
+								{Name: ".NET SDK 7", PackageID: "dotnet-7.0-sdk", CategoryType: "sdk", Description: ".NET 7 tools for building .NET apps."},
+								{Name: ".NET SDK 6", PackageID: "dotnet-6.0-sdk", CategoryType: "sdk", Description: ".NET 6 tools for building .NET apps."},
+								{Name: ".NET SDK 5", PackageID: "dotnet-5.0-sdk", CategoryType: "sdk", Description: ".NET 5 tools for building older .NET apps."},
 							},
 						},
 						{
@@ -159,11 +159,11 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Compiler toolchains and build systems.",
 							Apps: []Package{
-								{Name: "Go", PackageID: "golang", CategoryType: "runtime", Description: "Go programming language toolchain."},
-								{Name: "Rustup", PackageID: "rustup.install", CategoryType: "runtime", Description: "Rust toolchain installer and version manager."},
-								{Name: "LLVM", PackageID: "llvm", CategoryType: "runtime", Description: "LLVM compiler infrastructure."},
-								{Name: "MinGW", PackageID: "mingw", CategoryType: "runtime", Description: "Minimalist GNU toolchain for Windows."},
-								{Name: "CMake", PackageID: "cmake", CategoryType: "runtime", Description: "Cross-platform build system generator."},
+								{Name: "Go", PackageID: "golang", CategoryType: "toolchain", Description: "Go command-line toolchain. Run with go."},
+								{Name: "Rustup", PackageID: "rustup.install", CategoryType: "toolchain", Description: "Rust command-line toolchain installer. Run with rustup."},
+								{Name: "LLVM", PackageID: "llvm", CategoryType: "toolchain", Description: "Compiler toolchain for C, C++, and LLVM-based tools."},
+								{Name: "MinGW", PackageID: "mingw", CategoryType: "toolchain", Description: "GNU compiler toolchain for Windows."},
+								{Name: "CMake", PackageID: "cmake", CategoryType: "toolchain", Description: "Command-line build configuration tool. Run with cmake."},
 							},
 						},
 						{
@@ -171,10 +171,10 @@ func Default() []Category {
 							CategoryType: "runtime",
 							Description:  "Microsoft Visual C++ runtime packages for legacy and current Windows applications.",
 							Apps: []Package{
-								{Name: "VC++ Redist 2010 x86/x64", PackageID: "vcredist2010", CategoryType: "runtime", Description: "Microsoft Visual C++ 2010 runtime components for x86 and x64 applications."},
-								{Name: "VC++ Redist 2012 x86/x64", PackageID: "vcredist2012", CategoryType: "runtime", Description: "Microsoft Visual C++ 2012 runtime components for x86 and x64 applications."},
-								{Name: "VC++ Redist 2013 x86/x64", PackageID: "vcredist2013", CategoryType: "runtime", Description: "Microsoft Visual C++ 2013 runtime components for x86 and x64 applications."},
-								{Name: "VC++ Redist 2015-2022 x86/x64", PackageID: "vcredist140", CategoryType: "runtime", Description: "Current Microsoft Visual C++ runtime components for x86 and x64 applications, covering Visual Studio 2015 through 2022."},
+								{Name: "VC++ Redist 2010 x86/x64", PackageID: "vcredist2010", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
+								{Name: "VC++ Redist 2012 x86/x64", PackageID: "vcredist2012", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
+								{Name: "VC++ Redist 2013 x86/x64", PackageID: "vcredist2013", CategoryType: "runtime", Description: "Microsoft runtime required by older Windows apps and games."},
+								{Name: "VC++ Redist 2015-2022 x86/x64", PackageID: "vcredist140", CategoryType: "runtime", Description: "Microsoft runtime required by many Windows apps and games."},
 							},
 						},
 					},
@@ -184,13 +184,13 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Terminal emulators, shells, and command-line utilities.",
 					Apps: []Package{
-						{Name: "Windows Terminal", PackageID: "microsoft-windows-terminal", CategoryType: "terminal", Description: "Modern Microsoft terminal app."},
-						{Name: "PowerShell 7", PackageID: "powershell-core", CategoryType: "terminal", Description: "Modern cross-platform PowerShell."},
+						{Name: "Windows Terminal", PackageID: "microsoft-windows-terminal", CategoryType: "terminal", Description: "Microsoft terminal app for shells and command-line tools."},
+						{Name: "PowerShell 7", PackageID: "powershell-core", CategoryType: "terminal", Description: "Command-line shell and scripting environment. Run with pwsh."},
 						{Name: "WezTerm", PackageID: "wezterm", CategoryType: "terminal", Description: "GPU-accelerated terminal emulator."},
-						{Name: "Fastfetch", PackageID: "fastfetch", CategoryType: "terminal", Description: "Fast system information command-line tool."},
+						{Name: "Fastfetch", PackageID: "fastfetch", CategoryType: "terminal", Description: "Command-line system information tool. Run with fastfetch."},
 						{Name: "FZF", PackageID: "fzf", CategoryType: "terminal", Description: "Command-line fuzzy finder. Run with fzf."},
 						{Name: "ripgrep", PackageID: "ripgrep", CategoryType: "terminal", Description: "Command-line search tool. Run with rg."},
-						{Name: "Codex CLI", PackageID: "codex-cli", CategoryType: "terminal", Description: "OpenAI Codex command-line coding agent."},
+						{Name: "Codex CLI", PackageID: "codex-cli", CategoryType: "terminal", Description: "Command-line coding agent. Run with codex."},
 					},
 				},
 				{
@@ -242,8 +242,8 @@ func Default() []Category {
 						{Name: "OBS Studio", PackageID: "obs-studio", CategoryType: "media", Description: "Recording and streaming studio."},
 						{Name: "Kdenlive", PackageID: "kdenlive", CategoryType: "media", Description: "Open source video editor."},
 						{Name: "HandBrake", PackageID: "handbrake", CategoryType: "media", Description: "Video transcoder and converter."},
-						{Name: "yt-dlp", PackageID: "yt-dlp", CategoryType: "media", Description: "Command-line video downloader."},
-						{Name: "FFmpeg", PackageID: "ffmpeg", CategoryType: "media", Description: "Audio and video processing toolkit."},
+						{Name: "yt-dlp", PackageID: "yt-dlp", CategoryType: "media", Description: "Command-line video downloader. Run with yt-dlp."},
+						{Name: "FFmpeg", PackageID: "ffmpeg", CategoryType: "media", Description: "Command-line audio and video toolkit. Run with ffmpeg."},
 					},
 				},
 				{
@@ -313,7 +313,7 @@ func Default() []Category {
 						{Name: "RustDesk", PackageID: "rustdesk", CategoryType: "remote", Description: "Open source remote desktop tool."},
 						{Name: "Barrier", PackageID: "barrier", CategoryType: "remote", Description: "Keyboard and mouse sharing across computers."},
 						{Name: "scrcpy", PackageID: "scrcpy", CategoryType: "remote", Description: "Android screen mirroring and control tool."},
-						{Name: "ADB Platform Tools", PackageID: "adb", CategoryType: "remote", Description: "Android Debug Bridge platform tools."},
+						{Name: "ADB Platform Tools", PackageID: "adb", CategoryType: "remote", Description: "Android command-line debugging tools. Run with adb."},
 					},
 				},
 				{
@@ -459,12 +459,10 @@ func inferPackageType(app Package) PackageType {
 	switch app.CategoryType {
 	case "runtime", "sdk":
 		return PackageTypeRuntime
-	case "terminal":
-		return PackageTypeCLITool
 	}
 
 	switch app.PackageID {
-	case "helix", "neovim", "git", "yt-dlp", "ffmpeg", "adb", "scrcpy", "putty", "nmap", "autoruns", "procexp":
+	case "helix", "neovim", "git", "golang", "rustup.install", "llvm", "mingw", "cmake", "powershell-core", "fastfetch", "fzf", "ripgrep", "codex-cli", "yt-dlp", "ffmpeg", "adb", "scrcpy", "nmap":
 		return PackageTypeCLITool
 	}
 
