@@ -66,8 +66,9 @@ func (m Model) viewCatalog() string {
 	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
 	itemLines = m.visibleCatalogLines(itemLines, panelHeight)
 	itemLines = fitCatalogListLines(itemLines, leftWidth)
+	itemLines = padLines(itemLines, panelHeight)
 	left := borderStyle.Width(leftWidth).Height(panelHeight).Render(strings.Join(itemLines, "\n"))
-	right := borderStyle.Width(rightWidth).Height(panelHeight).Render(m.catalogDetailsPanel(rightWidth))
+	right := borderStyle.Width(rightWidth).Height(panelHeight).Render(m.catalogDetailsPanel(rightWidth, panelHeight))
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 	if contentWidth < 72 {
 		content = strings.Join([]string{left, "", right}, "\n")
@@ -532,30 +533,30 @@ func (m Model) installNameWidth(width int) int {
 	return maxName
 }
 
-func (m Model) catalogDetailsPanel(width int) string {
+func (m Model) catalogDetailsPanel(width, height int) string {
 	if m.catalogMode == catalogModeFull || m.searchActive() {
 		items := m.filteredFullCatalogItems()
 		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
-			return fitDetailsLines([]string{"No item selected."}, width)
+			return fitDetailsLines([]string{"No item selected."}, width, height)
 		}
 		item := items[m.catalogCursor]
 		selected := "No"
 		if m.selected[item.Package.PackageID] {
 			selected = "Yes"
 		}
-		return fitDetailsLines(packageDetailsLines(item.Package, selected), width)
+		return fitDetailsLines(packageDetailsLines(item.Package, selected), width, height)
 	}
 
 	categories := m.currentCategories()
 	if m.catalogCursor < len(categories) {
 		category := categories[m.catalogCursor]
-		return fitDetailsLines(categoryDetailsLines(category), width)
+		return fitDetailsLines(categoryDetailsLines(category), width, height)
 	}
 
 	appIndex := m.catalogCursor - len(categories)
 	apps := m.currentApps()
 	if appIndex < 0 || appIndex >= len(apps) {
-		return fitDetailsLines([]string{"No item selected."}, width)
+		return fitDetailsLines([]string{"No item selected."}, width, height)
 	}
 
 	app := apps[appIndex]
@@ -563,10 +564,10 @@ func (m Model) catalogDetailsPanel(width int) string {
 	if m.selected[app.PackageID] {
 		selected = "Yes"
 	}
-	return fitDetailsLines(packageDetailsLines(app, selected), width)
+	return fitDetailsLines(packageDetailsLines(app, selected), width, height)
 }
 
-func fitDetailsLines(lines []string, width int) string {
+func fitDetailsLines(lines []string, width, height int) string {
 	innerWidth := width - 2
 	if innerWidth < 12 {
 		innerWidth = 12
@@ -574,7 +575,22 @@ func fitDetailsLines(lines []string, width int) string {
 	for i, line := range lines {
 		lines[i] = fitLine(line, innerWidth)
 	}
+	lines = padLines(lines, height)
 	return strings.Join(lines, "\n")
+}
+
+func padLines(lines []string, height int) []string {
+	if height <= 0 {
+		return lines
+	}
+	if len(lines) > height {
+		return lines[:height]
+	}
+	padded := append([]string{}, lines...)
+	for len(padded) < height {
+		padded = append(padded, "")
+	}
+	return padded
 }
 
 func catalogPaneWidths(contentWidth int) (int, int) {
@@ -626,21 +642,19 @@ func packageDetailsLines(app catalog.Package, selected string) []string {
 	}
 	lines := []string{
 		"Package:",
+		app.Name,
+		"",
+		"ID:",
 		app.PackageID,
 		"",
-		"Type:",
-		packageTypeLabel(app.Type),
-		"",
-		"Manager:",
-		source,
-		"",
-		"Verified:",
-		verified,
+		"Type: " + packageTypeLabel(app.Type),
+		"Manager: " + source,
+		"Verified: " + verified,
 		"",
 		"Description:",
 	}
 	lines = append(lines, wrapText(app.Description, 28)...)
-	lines = append(lines, "", "Selected:", selected)
+	lines = append(lines, "", "Selected: "+selected)
 	return lines
 }
 

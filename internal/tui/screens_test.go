@@ -62,6 +62,66 @@ func TestCatalogViewHeightStaysStableAcrossNavigation(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchPanelHeightStaysStableWithShortResults(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "discord",
+		selected:      map[string]bool{},
+	}
+
+	view := stripANSI(model.View())
+	top, bottom := catalogPanelBorderRows(t, view)
+	if got := bottom - top; got != model.catalogPanelHeight()+1 {
+		t.Fatalf("catalog panel height should stay fixed for short search results, got border distance %d, want %d\n%s", got, model.catalogPanelHeight()+1, view)
+	}
+}
+
+func TestCatalogSearchPanelHeightStaysStableWithEmptyResults(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "definitely-not-a-package",
+		selected:      map[string]bool{},
+	}
+
+	view := stripANSI(model.View())
+	top, bottom := catalogPanelBorderRows(t, view)
+	if got := bottom - top; got != model.catalogPanelHeight()+1 {
+		t.Fatalf("catalog panel height should stay fixed for empty search results, got border distance %d, want %d\n%s", got, model.catalogPanelHeight()+1, view)
+	}
+}
+
+func TestCatalogSearchPanelsStayAligned(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "zzzzzz",
+		selected:      map[string]bool{},
+	}
+
+	view := stripANSI(model.View())
+	top, bottom := catalogPanelBorderRows(t, view)
+	lines := strings.Split(view, "\n")
+	for _, row := range []int{top, bottom} {
+		if count := strings.Count(lines[row], "+"); count < 4 {
+			t.Fatalf("left and right panel borders should share row %d, got %d plus signs in %q\n%s", row, count, lines[row], view)
+		}
+	}
+}
+
 func TestCatalogBreadcrumbIncludesRoot(t *testing.T) {
 	model := Model{
 		categories:  catalog.Default(),
@@ -83,9 +143,11 @@ func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
 		Verified:    true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 40))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 40, 18))
 	for _, want := range []string{
 		"Package:",
+		"Visual Studio Code",
+		"ID:",
 		"vscode",
 		"Type:",
 		"Application",
@@ -99,6 +161,12 @@ func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
 			t.Fatalf("details panel should contain %q, got:\n%s", want, view)
 		}
 	}
+	if strings.Contains(view, "Package:\nvscode") {
+		t.Fatalf("details panel should show human-readable name under Package, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Package:\nVisual Studio Code") || !strings.Contains(view, "ID:\nvscode") {
+		t.Fatalf("details panel should show name and id separately, got:\n%s", view)
+	}
 }
 
 func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
@@ -108,7 +176,7 @@ func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
 		t.Fatal("expected Helix in default catalog")
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
 	if !strings.Contains(view, "CLI Tool") {
 		t.Fatalf("CLI package should render CLI Tool type, got:\n%s", view)
 	}
@@ -127,7 +195,7 @@ func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
 		Verified:    true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "Yes"), 26))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "Yes"), 26, 18))
 	for _, line := range strings.Split(view, "\n") {
 		if len(line) > 27 {
 			t.Fatalf("details line should be constrained, got %d chars in %q\n%s", len(line), line, view)
@@ -647,6 +715,21 @@ func itemNames(items []fullCatalogItem) []string {
 		names = append(names, item.Package.Name)
 	}
 	return names
+}
+
+func catalogPanelBorderRows(t *testing.T, view string) (int, int) {
+	t.Helper()
+
+	rows := []int{}
+	for i, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "+---") && strings.Count(line, "+") >= 4 {
+			rows = append(rows, i)
+		}
+	}
+	if len(rows) < 2 {
+		t.Fatalf("expected top and bottom rows for aligned catalog panels, got rows=%v\n%s", rows, view)
+	}
+	return rows[0], rows[len(rows)-1]
 }
 
 func stripANSI(value string) string {
