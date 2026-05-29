@@ -133,6 +133,66 @@ func TestCatalogBreadcrumbIncludesRoot(t *testing.T) {
 	}
 }
 
+func TestRussianKeyboardAliasesWorkForGlobalQuit(t *testing.T) {
+	model := Model{
+		screen:   screenCatalog,
+		selected: map[string]bool{},
+	}
+
+	_, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'й'}})
+	if cmd == nil {
+		t.Fatal("russian q key alias should quit")
+	}
+}
+
+func TestRussianKeyboardAliasesWorkForCatalogNavigation(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'о'}})
+	got := updated.(Model)
+	if got.catalogCursor != 1 {
+		t.Fatalf("russian j key alias should move down, got cursor %d", got.catalogCursor)
+	}
+
+	updated, _ = got.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'л'}})
+	got = updated.(Model)
+	if got.catalogCursor != 0 {
+		t.Fatalf("russian k key alias should move up, got cursor %d", got.catalogCursor)
+	}
+}
+
+func TestRussianKeyboardAliasesWorkForCatalogActions(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'.'}})
+	got := updated.(Model)
+	if !got.searchFocused {
+		t.Fatal("russian slash key alias should focus search")
+	}
+
+	got.searchFocused = false
+	got.searchQuery = ""
+	updated, _ = got.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'ш'}})
+	got = updated.(Model)
+	if got.screen != screenReview {
+		t.Fatalf("russian i key alias should open review screen, got screen %v", got.screen)
+	}
+}
+
 func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
 	app := catalog.Package{
 		Name:        "Visual Studio Code",

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
@@ -198,8 +199,55 @@ func (m Model) View() string {
 	}
 }
 
+func keyName(msg tea.KeyMsg) string {
+	key := msg.String()
+	if len(msg.Runes) != 1 {
+		return key
+	}
+	if normalized, ok := russianKeyboardAliases[unicode.ToLower(msg.Runes[0])]; ok {
+		return normalized
+	}
+	return key
+}
+
+var russianKeyboardAliases = map[rune]string{
+	'й': "q",
+	'ц': "w",
+	'у': "e",
+	'к': "r",
+	'е': "t",
+	'н': "y",
+	'г': "u",
+	'ш': "i",
+	'щ': "o",
+	'з': "p",
+	'х': "[",
+	'ъ': "]",
+	'ф': "a",
+	'ы': "s",
+	'в': "d",
+	'а': "f",
+	'п': "g",
+	'р': "h",
+	'о': "j",
+	'л': "k",
+	'д': "l",
+	'ж': ";",
+	'э': "'",
+	'я': "z",
+	'ч': "x",
+	'с': "c",
+	'м': "v",
+	'и': "b",
+	'т': "n",
+	'ь': "m",
+	'б': ",",
+	'ю': ".",
+	'.': "/",
+}
+
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "ctrl+c", "q":
 		if m.screen == screenInstall && m.cancelInstall != nil {
 			m.cancelInstall()
@@ -212,7 +260,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch m.screen {
 	case screenWelcome:
-		if msg.String() == "enter" {
+		if keyName(msg) == "enter" {
 			m.screen = screenModeSelect
 			return m, tea.ClearScreen
 		}
@@ -236,7 +284,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleModeSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "up", "k", "down", "j":
 		if m.modeCursor == 0 {
 			m.modeCursor = 1
@@ -267,7 +315,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.notice = ""
 
 	if m.searchFocused {
-		switch msg.String() {
+		switch keyName(msg) {
 		case "up", "k":
 			m.moveCatalogCursor(-1)
 		case "down", "j":
@@ -301,7 +349,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.String() {
+	switch keyName(msg) {
 	case "tab":
 		return m, nil
 	case "up", "k":
@@ -347,7 +395,7 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "up", "k":
 		m.moveReviewScroll(-1)
 	case "down", "j":
@@ -441,7 +489,7 @@ func (m Model) reviewVisibleRows() int {
 }
 
 func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "b", "esc":
 		if m.cancelBootstrap != nil {
 			m.cancelBootstrap()
@@ -492,7 +540,7 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleBrokenChocolateyKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "b", "esc":
 		m.brokenRunning = false
 		m.brokenError = ""
@@ -518,7 +566,7 @@ func (m Model) handleBrokenChocolateyKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleElevationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "enter":
 		if m.elevationRunning {
 			return m, nil
@@ -668,7 +716,7 @@ func (m Model) handleElevationMsg(msg elevationMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch keyName(msg) {
 	case "up", "k":
 		m.moveInstallScroll(-1)
 	case "down", "j":
