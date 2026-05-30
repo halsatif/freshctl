@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
+	"github.com/halsatif/freshctl/internal/detection"
 	"github.com/halsatif/freshctl/internal/installer"
 )
 
@@ -38,19 +39,21 @@ type Model struct {
 	width  int
 	height int
 
-	categories    []catalog.Category
-	catalogPath   []int
-	catalogCursor int
-	catalogScroll int
-	modeCursor    int
-	catalogMode   catalogMode
-	searchFocused bool
-	searchQuery   string
-	searchCursor  bool
-	selected      map[string]bool
-	notice        string
-	reviewScroll  int
-	installScroll int
+	categories      []catalog.Category
+	installed       map[string]InstalledStatus
+	detectInstalled func(catalog.Package) bool
+	catalogPath     []int
+	catalogCursor   int
+	catalogScroll   int
+	modeCursor      int
+	catalogMode     catalogMode
+	searchFocused   bool
+	searchQuery     string
+	searchCursor    bool
+	selected        map[string]bool
+	notice          string
+	reviewScroll    int
+	installScroll   int
 
 	installEvents chan installer.Event
 	skipInstall   chan struct{}
@@ -86,6 +89,11 @@ type Model struct {
 	brokenError   string
 }
 
+type InstalledStatus struct {
+	Installed bool
+	Checked   bool
+}
+
 type installEventMsg struct {
 	event installer.Event
 	ok    bool
@@ -116,6 +124,7 @@ type searchCursorTickMsg struct{}
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
 	bootstrapStatus := ""
+	categories := catalog.Default()
 	selected := selectedFromArgs(args)
 	if selected == nil {
 		selected = make(map[string]bool)
@@ -133,14 +142,16 @@ func NewModel(args []string) Model {
 		initialScreen = screenReview
 	}
 
-	return Model{
+	model := Model{
 		screen:          initialScreen,
-		categories:      catalog.Default(),
+		categories:      categories,
 		selected:        selected,
 		bootstrapBack:   screenWelcome,
 		bootstrapStatus: bootstrapStatus,
 		brokenBack:      screenWelcome,
 	}
+	model.RefreshInstalledStatus()
+	return model
 }
 
 func (m Model) Init() tea.Cmd {
@@ -1158,6 +1169,44 @@ func selectedFromArgs(args []string) map[string]bool {
 		return selected
 	}
 	return nil
+}
+
+func (m *Model) RefreshInstalledStatus() {
+	detector := m.detectInstalled
+	if detector == nil {
+		detector = detection.DetectInstalled
+	}
+	status := make(map[string]InstalledStatus)
+	for _, app := range collectModelPackages(m.categories) {
+		if !detection.HasDetectionMetadata(app) {
+			continue
+		}
+		status[app.PackageID] = InstalledStatus{
+			Installed: detector(app),
+			Checked:   true,
+		}
+	}
+	m.installed = status
+}
+
+func (m Model) installedStatus(app catalog.Package) (InstalledStatus, bool) {
+	if !detection.HasDetectionMetadata(app) {
+		return InstalledStatus{}, false
+	}
+	status, ok := m.installed[app.PackageID]
+	if !ok {
+		return InstalledStatus{}, true
+	}
+	return status, true
+}
+
+func collectModelPackages(categories []catalog.Category) []catalog.Package {
+	apps := make([]catalog.Package, 0)
+	for _, category := range categories {
+		apps = append(apps, collectModelPackages(category.Categories)...)
+		apps = append(apps, category.Apps...)
+	}
+	return apps
 }
 
 func (m Model) installIndex(app catalog.Package) int {

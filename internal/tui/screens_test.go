@@ -204,7 +204,7 @@ func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
 		Verified:    true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 40, 18))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No", ""), 40, 18))
 	for _, want := range []string{
 		"Package:",
 		"Visual Studio Code",
@@ -237,7 +237,7 @@ func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
 		t.Fatal("expected Helix in default catalog")
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No", ""), 44, 18))
 	if !strings.Contains(view, "CLI Tool") {
 		t.Fatalf("CLI package should render CLI Tool type, got:\n%s", view)
 	}
@@ -258,7 +258,7 @@ func TestPackageDetailsPanelShowsInstalledStatusWhenDetectionExists(t *testing.T
 		Verified:     true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No", "No"), 44, 18))
 	if !strings.Contains(view, "Installed: No") {
 		t.Fatalf("details panel should show installed status when detection metadata exists, got:\n%s", view)
 	}
@@ -274,9 +274,112 @@ func TestPackageDetailsPanelHidesInstalledStatusWithoutDetection(t *testing.T) {
 		Verified:    true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No", ""), 44, 18))
 	if strings.Contains(view, "Installed:") {
 		t.Fatalf("details panel should hide installed status without detection metadata, got:\n%s", view)
+	}
+}
+
+func TestInstalledStatusCachePopulatesDetectedPackages(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Cached Tool",
+		PackageID:    "cached-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "cached-tool.exe",
+	}
+	model := Model{
+		categories: []catalog.Category{{Apps: []catalog.Package{app}}},
+		detectInstalled: func(pkg catalog.Package) bool {
+			return pkg.PackageID == "cached-tool"
+		},
+	}
+
+	model.RefreshInstalledStatus()
+	status, ok := model.installed["cached-tool"]
+	if !ok || !status.Checked || !status.Installed {
+		t.Fatalf("refresh should populate checked installed status, got %#v ok=%v", status, ok)
+	}
+}
+
+func TestInstalledStatusCacheSkipsPackagesWithoutDetectionMetadata(t *testing.T) {
+	model := Model{
+		categories: []catalog.Category{{Apps: []catalog.Package{{
+			Name:      "No Detection",
+			PackageID: "no-detection",
+		}}}},
+		detectInstalled: func(catalog.Package) bool {
+			t.Fatal("detector should not be called for package without detection metadata")
+			return true
+		},
+	}
+
+	model.RefreshInstalledStatus()
+	if _, ok := model.installed["no-detection"]; ok {
+		t.Fatal("package without detection metadata should not be cached")
+	}
+}
+
+func TestInstalledStatusRefreshUpdatesCache(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Refresh Tool",
+		PackageID:    "refresh-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "refresh-tool.exe",
+	}
+	installed := false
+	model := Model{
+		categories: []catalog.Category{{Apps: []catalog.Package{app}}},
+		detectInstalled: func(catalog.Package) bool {
+			return installed
+		},
+	}
+
+	model.RefreshInstalledStatus()
+	if model.installed["refresh-tool"].Installed {
+		t.Fatal("first refresh should cache not installed")
+	}
+
+	installed = true
+	model.RefreshInstalledStatus()
+	if !model.installed["refresh-tool"].Installed {
+		t.Fatal("second refresh should update cached installed status")
+	}
+}
+
+func TestNewModelScansInstalledStatusAtStartup(t *testing.T) {
+	model := NewModel(nil)
+	status, ok := model.installed["googlechrome"]
+	if !ok || !status.Checked {
+		t.Fatalf("NewModel should populate installed status cache for packages with detection metadata, got %#v ok=%v", status, ok)
+	}
+}
+
+func TestDetailsPanelUsesCachedInstalledStatus(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Cached Missing Tool",
+		Description:  "Tool that should read installed state from cache.",
+		PackageID:    "cached-missing-tool",
+		Type:         catalog.PackageTypeCLITool,
+		Source:       catalog.PackageSourceChocolatey,
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "freshctl-definitely-not-installed.exe",
+		Verified:     true,
+	}
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"cached-missing-tool": {Installed: true, Checked: true},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Installed: Yes") {
+		t.Fatalf("details panel should use cached installed status, got:\n%s", view)
 	}
 }
 
@@ -290,7 +393,7 @@ func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
 		Verified:    true,
 	}
 
-	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "Yes"), 26, 18))
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "Yes", ""), 26, 18))
 	for _, line := range strings.Split(view, "\n") {
 		if len(line) > 27 {
 			t.Fatalf("details line should be constrained, got %d chars in %q\n%s", len(line), line, view)

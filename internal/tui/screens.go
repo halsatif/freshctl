@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/halsatif/freshctl/internal/catalog"
-	"github.com/halsatif/freshctl/internal/detection"
 )
 
 func (m Model) viewWelcome() string {
@@ -554,7 +553,7 @@ func (m Model) catalogDetailsPanel(width, height int) string {
 		if m.selected[item.Package.PackageID] {
 			selected = "Yes"
 		}
-		return fitDetailsLines(packageDetailsLines(item.Package, selected), width, height)
+		return fitDetailsLines(packageDetailsLines(item.Package, selected, m.installedStatusLabel(item.Package)), width, height)
 	}
 
 	categories := m.currentCategories()
@@ -574,7 +573,7 @@ func (m Model) catalogDetailsPanel(width, height int) string {
 	if m.selected[app.PackageID] {
 		selected = "Yes"
 	}
-	return fitDetailsLines(packageDetailsLines(app, selected), width, height)
+	return fitDetailsLines(packageDetailsLines(app, selected, m.installedStatusLabel(app)), width, height)
 }
 
 func fitDetailsLines(lines []string, width, height int) string {
@@ -641,7 +640,7 @@ func categoryDetailsLines(category catalog.Category) []string {
 	return lines
 }
 
-func packageDetailsLines(app catalog.Package, selected string) []string {
+func packageDetailsLines(app catalog.Package, selected string, installed string) []string {
 	source := string(app.Source)
 	if source == "" {
 		source = string(catalog.PackageSourceChocolatey)
@@ -661,17 +660,24 @@ func packageDetailsLines(app catalog.Package, selected string) []string {
 		"Manager: " + source,
 		"Verified: " + verified,
 	}
-	if detection.HasDetectionMetadata(app) {
-		installed := "No"
-		if detection.DetectInstalled(app) {
-			installed = "Yes"
-		}
+	if installed != "" {
 		lines = append(lines, "Installed: "+installed)
 	}
 	lines = append(lines, "", "Description:")
 	lines = append(lines, wrapText(app.Description, 28)...)
 	lines = append(lines, "", "Selected: "+selected)
 	return lines
+}
+
+func (m Model) installedStatusLabel(app catalog.Package) string {
+	status, ok := m.installedStatus(app)
+	if !ok {
+		return ""
+	}
+	if status.Checked && status.Installed {
+		return "Yes"
+	}
+	return "No"
 }
 
 func packageTypeLabel(packageType catalog.PackageType) string {
@@ -895,7 +901,7 @@ func maxCatalogDetailsHeight(categories []catalog.Category) int {
 	for _, category := range categories {
 		height = maxInt(height, len(categoryDetailsLines(category)))
 		for _, app := range category.Apps {
-			height = maxInt(height, len(packageDetailsLines(app, "No")))
+			height = maxInt(height, len(packageDetailsLines(app, "No", "No")))
 		}
 		height = maxInt(height, maxCatalogDetailsHeight(category.Categories))
 	}
