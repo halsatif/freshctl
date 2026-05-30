@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"regexp"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
+	"github.com/halsatif/freshctl/internal/installer"
 )
 
 func TestCatalogViewRendersSingleCleanScreen(t *testing.T) {
@@ -499,6 +501,171 @@ func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
 	view := stripANSI(model.View())
 	if !strings.Contains(view, "Installed") {
 		t.Fatalf("render should show cached installed status, got:\n%s", view)
+	}
+}
+
+func TestInstallSummaryRefreshesInstalledStatusCacheOnce(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Refresh Once Tool",
+		Description:  "Refresh once test.",
+		PackageID:    "refresh-once-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "refresh-once-tool.exe",
+	}
+	calls := 0
+	model := Model{
+		screen:      screenInstall,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		installApps: []catalog.Package{app},
+		appStatus:   map[string]string{"refresh-once-tool": "installed"},
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"refresh-once-tool": {Installed: false, Checked: true},
+		},
+		detectInstalled: func(catalog.Package) bool {
+			calls++
+			return true
+		},
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: app, Success: true}},
+		},
+	})
+	got := updated.(Model)
+	if calls != 1 {
+		t.Fatalf("install summary should refresh installed status once, got %d calls", calls)
+	}
+	if !got.installed["refresh-once-tool"].Installed {
+		t.Fatalf("install summary should refresh cache to installed, got %#v", got.installed["refresh-once-tool"])
+	}
+
+	updated, _ = got.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: app, Success: true}},
+		},
+	})
+	if calls != 1 {
+		t.Fatalf("second install summary should not refresh cache again, got %d calls", calls)
+	}
+}
+
+func TestSuccessfulInstallUpdatesStatusWhenDetectable(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Detectable Success",
+		Description:  "Detectable success test.",
+		PackageID:    "detectable-success",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "detectable-success.exe",
+	}
+	model := Model{
+		screen:      screenInstall,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		installApps: []catalog.Package{app},
+		appStatus:   map[string]string{"detectable-success": "installed"},
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"detectable-success": {Installed: false, Checked: true},
+		},
+		detectInstalled: func(catalog.Package) bool {
+			return true
+		},
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: app, Success: true}},
+		},
+	})
+	got := updated.(Model)
+	if !got.installed["detectable-success"].Installed {
+		t.Fatalf("successful install should use detection refresh result, got %#v", got.installed["detectable-success"])
+	}
+}
+
+func TestFailedInstallDoesNotFakeInstalledStatus(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Detectable Failure",
+		Description:  "Detectable failure test.",
+		PackageID:    "detectable-failure",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "detectable-failure.exe",
+	}
+	model := Model{
+		screen:      screenInstall,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		installApps: []catalog.Package{app},
+		appStatus:   map[string]string{"detectable-failure": "failed"},
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"detectable-failure": {Installed: false, Checked: true},
+		},
+		detectInstalled: func(catalog.Package) bool {
+			return false
+		},
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: app, Success: false, Err: errors.New("install failed")}},
+		},
+	})
+	got := updated.(Model)
+	if got.installed["detectable-failure"].Installed {
+		t.Fatalf("failed install should not force installed status, got %#v", got.installed["detectable-failure"])
+	}
+}
+
+func TestCatalogReflectsRefreshedInstalledStatusAfterInstall(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Reflected Tool",
+		Description:  "Reflected status test.",
+		PackageID:    "reflected-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "reflected-tool.exe",
+		Type:         catalog.PackageTypeCLITool,
+		Source:       catalog.PackageSourceChocolatey,
+		Verified:     true,
+	}
+	model := Model{
+		screen:      screenInstall,
+		width:       100,
+		height:      32,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		installApps: []catalog.Package{app},
+		appStatus:   map[string]string{"reflected-tool": "installed"},
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"reflected-tool": {Installed: false, Checked: true},
+		},
+		detectInstalled: func(catalog.Package) bool {
+			return true
+		},
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: app, Success: true}},
+		},
+	})
+	got := updated.(Model)
+	got.screen = screenCatalog
+
+	view := stripANSI(got.View())
+	if !strings.Contains(view, "Installed") || !strings.Contains(view, "Installed: Yes") {
+		t.Fatalf("catalog list and details should reflect refreshed installed cache, got:\n%s", view)
 	}
 }
 

@@ -55,22 +55,23 @@ type Model struct {
 	reviewScroll    int
 	installScroll   int
 
-	installEvents chan installer.Event
-	skipInstall   chan struct{}
-	cancelInstall context.CancelFunc
-	installApps   []catalog.Package
-	installLog    []string
-	fullLog       []string
-	showFullLog   bool
-	results       []installer.Result
-	appStatus     map[string]string
-	appElapsed    map[string]time.Duration
-	currentApp    catalog.Package
-	currentStep   int
-	currentCmd    string
-	currentStart  time.Time
-	spinnerFrame  int
-	installDone   bool
+	installEvents          chan installer.Event
+	skipInstall            chan struct{}
+	cancelInstall          context.CancelFunc
+	installApps            []catalog.Package
+	installLog             []string
+	fullLog                []string
+	showFullLog            bool
+	results                []installer.Result
+	appStatus              map[string]string
+	appElapsed             map[string]time.Duration
+	currentApp             catalog.Package
+	currentStep            int
+	currentCmd             string
+	currentStart           time.Time
+	spinnerFrame           int
+	installDone            bool
+	installStatusRefreshed bool
 
 	bootstrapBack    screen
 	bootstrapEvents  chan installer.BootstrapEvent
@@ -673,6 +674,10 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		}
 		m.results = event.Results
 		m.installDone = true
+		if !m.installStatusRefreshed {
+			m.RefreshInstalledStatus()
+			m.installStatusRefreshed = true
+		}
 		m.cancelInstall = nil
 		m.skipInstall = nil
 	}
@@ -848,6 +853,7 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.installScroll = 0
 	m.spinnerFrame = 0
 	m.installDone = false
+	m.installStatusRefreshed = false
 	m.installEvents = make(chan installer.Event)
 	m.skipInstall = make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
