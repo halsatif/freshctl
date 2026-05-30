@@ -14,6 +14,14 @@ const (
 	PackageSourceChocolatey PackageSource = "Chocolatey"
 )
 
+type DetectMethod string
+
+const (
+	DetectNone     DetectMethod = ""
+	DetectRegistry DetectMethod = "Registry"
+	DetectPath     DetectMethod = "Path"
+)
+
 type Package struct {
 	Name         string
 	Description  string
@@ -21,6 +29,8 @@ type Package struct {
 	Type         PackageType
 	Source       PackageSource
 	PackageID    string
+	DetectMethod DetectMethod
+	DetectValue  string
 	Verified     bool
 	CategoryType string
 	Selected     bool
@@ -52,6 +62,12 @@ func prerelease(pkg Package) Package {
 	return pkg
 }
 
+func detect(pkg Package, method DetectMethod, value string) Package {
+	pkg.DetectMethod = method
+	pkg.DetectValue = value
+	return pkg
+}
+
 func packageWithType(name, id, category, description string, packageType PackageType) Package {
 	return Package{
 		Name:         name,
@@ -72,10 +88,10 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Web browsers for everyday browsing, privacy-focused workflows, and alternate browser engines.",
 			Apps: []Package{
-				app("Google Chrome", "googlechrome", "browser", "Google's web browser."),
+				detect(app("Google Chrome", "googlechrome", "browser", "Google's web browser."), DetectRegistry, "Google Chrome"),
 				app("Opera", "opera", "browser", "Opera web browser."),
 				app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."),
-				app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."),
+				detect(app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."), DetectRegistry, "Mozilla Firefox"),
 				app("Waterfox", "waterfox", "browser", "Firefox-derived browser focused on customization."),
 				app("Microsoft Edge", "microsoft-edge", "browser", "Microsoft Edge browser."),
 				app("Brave Browser", "brave", "browser", "Privacy-focused Chromium browser."),
@@ -90,7 +106,7 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Messaging, voice chat, video meetings, and team communication apps.",
 			Apps: []Package{
-				app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."),
+				detect(app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."), DetectRegistry, "Telegram Desktop"),
 				app("Signal", "signal", "communication", "Private messaging desktop app."),
 				app("Element", "element-desktop", "communication", "Matrix-based secure chat client."),
 				app("Zoom", "zoom", "communication", "Video meetings and conferencing app."),
@@ -108,11 +124,11 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Code editors and development workspaces.",
 					Apps: []Package{
-						app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."),
+						detect(app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."), DetectRegistry, "Visual Studio Code"),
 						app("Zed", "zed-editor", "editor", "Fast collaborative code editor."),
 						app("Sublime Text", "sublimetext4", "editor", "Fast text and code editor."),
 						cli("Neovim", "neovim", "editor", "Terminal-based code editor. Run with nvim."),
-						cli("Helix", "helix", "editor", "Terminal-based code editor. Run with hx."),
+						detect(cli("Helix", "helix", "editor", "Terminal-based code editor. Run with hx."), DetectPath, "hx.exe"),
 						app("JetBrains Toolbox", "jetbrainstoolbox", "editor", "JetBrains IDE manager."),
 						app("IntelliJ IDEA Community", "intellijidea-community", "editor", "JetBrains Java and JVM IDE."),
 						app("PyCharm Community", "pycharm-community", "editor", "JetBrains Python IDE."),
@@ -204,7 +220,7 @@ func Default() []Category {
 								runtimePackage("VC++ Redist 2010 x86/x64", "vcredist2010", "runtime", "Microsoft runtime required by older Windows apps and games."),
 								runtimePackage("VC++ Redist 2012 x86/x64", "vcredist2012", "runtime", "Microsoft runtime required by older Windows apps and games."),
 								runtimePackage("VC++ Redist 2013 x86/x64", "vcredist2013", "runtime", "Microsoft runtime required by older Windows apps and games."),
-								runtimePackage("VC++ Redist 2015-2022 x86/x64", "vcredist140", "runtime", "Microsoft runtime required by many Windows apps and games."),
+								detect(runtimePackage("VC++ Redist 2015-2022 x86/x64", "vcredist140", "runtime", "Microsoft runtime required by many Windows apps and games."), DetectRegistry, "Microsoft Visual C++"),
 							},
 						},
 					},
@@ -218,8 +234,8 @@ func Default() []Category {
 						cli("PowerShell 7", "powershell-core", "terminal", "Command-line shell and scripting environment. Run with pwsh."),
 						app("WezTerm", "wezterm", "terminal", "GPU-accelerated terminal emulator."),
 						cli("Fastfetch", "fastfetch", "terminal", "Command-line system information tool. Run with fastfetch."),
-						cli("FZF", "fzf", "terminal", "Command-line fuzzy finder. Run with fzf."),
-						cli("ripgrep", "ripgrep", "terminal", "Command-line search tool. Run with rg."),
+						detect(cli("FZF", "fzf", "terminal", "Command-line fuzzy finder. Run with fzf."), DetectPath, "fzf.exe"),
+						detect(cli("ripgrep", "ripgrep", "terminal", "Command-line search tool. Run with rg."), DetectPath, "rg.exe"),
 						cli("Codex CLI", "codex-cli", "terminal", "Command-line coding agent. Run with codex."),
 					},
 				},
@@ -318,7 +334,7 @@ func Default() []Category {
 				app("Epic Games Launcher", "epicgameslauncher", "gaming", "Epic Games Store launcher."),
 				app("Heroic Games Launcher", "heroic-games-launcher", "gaming", "Open source launcher for Epic, GOG, and Amazon games."),
 				app("Prism Launcher", "prismlauncher", "gaming", "Minecraft launcher for multiple instances and modded setups."),
-				app("Discord", "discord", "gaming", "Voice and chat app for communities."),
+				detect(app("Discord", "discord", "gaming", "Voice and chat app for communities."), DetectRegistry, "Discord"),
 				app("Parsec", "parsec", "gaming", "Low-latency remote desktop and game streaming app."),
 				app("Moonlight", "moonlight", "gaming", "GameStream client for remote gaming."),
 				app("Sunshine", "sunshine", "gaming", "Self-hosted game streaming host."),
@@ -351,7 +367,7 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "File copy, cleanup, search, launchers, and system shell utilities.",
 					Apps: []Package{
-						app("Everything", "everything", "utility", "Fast local file search tool."),
+						detect(app("Everything", "everything", "utility", "Fast local file search tool."), DetectRegistry, "Everything"),
 						app("TeraCopy", "teracopy", "utility", "File copy utility with verification and queueing."),
 						app("Revo Uninstaller", "revo-uninstaller", "utility", "Application uninstaller and cleanup tool."),
 						app("Launchy", "launchy", "utility", "Keyboard-driven application launcher."),
@@ -386,7 +402,7 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Archive managers and compression tools.",
 					Apps: []Package{
-						app("7-Zip", "7zip", "archive", "File archiver with broad format support."),
+						detect(app("7-Zip", "7zip", "archive", "File archiver with broad format support."), DetectRegistry, "7-Zip"),
 						app("WinRAR", "winrar", "archive", "Archive manager for RAR, ZIP, and other formats."),
 						app("PeaZip", "peazip", "archive", "Open source archive manager."),
 					},

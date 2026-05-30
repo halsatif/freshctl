@@ -246,6 +246,40 @@ func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
 	}
 }
 
+func TestPackageDetailsPanelShowsInstalledStatusWhenDetectionExists(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Missing CLI",
+		Description:  "Test command-line tool.",
+		PackageID:    "missing-cli",
+		Type:         catalog.PackageTypeCLITool,
+		Source:       catalog.PackageSourceChocolatey,
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "freshctl-definitely-not-installed.exe",
+		Verified:     true,
+	}
+
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
+	if !strings.Contains(view, "Installed: No") {
+		t.Fatalf("details panel should show installed status when detection metadata exists, got:\n%s", view)
+	}
+}
+
+func TestPackageDetailsPanelHidesInstalledStatusWithoutDetection(t *testing.T) {
+	app := catalog.Package{
+		Name:        "No Detection",
+		Description: "Package without detection metadata.",
+		PackageID:   "no-detection",
+		Type:        catalog.PackageTypeApplication,
+		Source:      catalog.PackageSourceChocolatey,
+		Verified:    true,
+	}
+
+	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No"), 44, 18))
+	if strings.Contains(view, "Installed:") {
+		t.Fatalf("details panel should hide installed status without detection metadata, got:\n%s", view)
+	}
+}
+
 func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
 	app := catalog.Package{
 		Name:        "Long App",

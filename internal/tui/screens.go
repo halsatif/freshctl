@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/halsatif/freshctl/internal/catalog"
+	"github.com/halsatif/freshctl/internal/detection"
 )
 
 func (m Model) viewWelcome() string {
@@ -659,9 +660,15 @@ func packageDetailsLines(app catalog.Package, selected string) []string {
 		"Type: " + packageTypeLabel(app.Type),
 		"Manager: " + source,
 		"Verified: " + verified,
-		"",
-		"Description:",
 	}
+	if detection.HasDetectionMetadata(app) {
+		installed := "No"
+		if detection.DetectInstalled(app) {
+			installed = "Yes"
+		}
+		lines = append(lines, "Installed: "+installed)
+	}
+	lines = append(lines, "", "Description:")
 	lines = append(lines, wrapText(app.Description, 28)...)
 	lines = append(lines, "", "Selected: "+selected)
 	return lines

@@ -60,6 +60,36 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 	}
 }
 
+func TestKnownPackageDetectionMetadata(t *testing.T) {
+	apps := packagesByID(Default())
+	examples := map[string]struct {
+		method DetectMethod
+		value  string
+	}{
+		"googlechrome": {method: DetectRegistry, value: "Google Chrome"},
+		"firefox":      {method: DetectRegistry, value: "Mozilla Firefox"},
+		"vscode":       {method: DetectRegistry, value: "Visual Studio Code"},
+		"discord":      {method: DetectRegistry, value: "Discord"},
+		"telegram":     {method: DetectRegistry, value: "Telegram Desktop"},
+		"7zip":         {method: DetectRegistry, value: "7-Zip"},
+		"everything":   {method: DetectRegistry, value: "Everything"},
+		"helix":        {method: DetectPath, value: "hx.exe"},
+		"ripgrep":      {method: DetectPath, value: "rg.exe"},
+		"fzf":          {method: DetectPath, value: "fzf.exe"},
+		"vcredist140":  {method: DetectRegistry, value: "Microsoft Visual C++"},
+	}
+
+	for id, want := range examples {
+		app, ok := apps[id]
+		if !ok {
+			t.Fatalf("expected package %s in default catalog", id)
+		}
+		if app.DetectMethod != want.method || app.DetectValue != want.value {
+			t.Fatalf("%s detection metadata = %q/%q, want %q/%q", id, app.DetectMethod, app.DetectValue, want.method, want.value)
+		}
+	}
+}
+
 func TestKnownCLIToolsMentionCommand(t *testing.T) {
 	apps := packagesByID(Default())
 	commands := map[string]string{
