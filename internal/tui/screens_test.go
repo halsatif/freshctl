@@ -383,6 +383,125 @@ func TestDetailsPanelUsesCachedInstalledStatus(t *testing.T) {
 	}
 }
 
+func TestCatalogListShowsInstalledStatusFromCache(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Cached Installed",
+		PackageID:    "cached-installed",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "cached-installed.exe",
+	}
+	model := Model{
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"cached-installed": {Installed: true, Checked: true},
+		},
+	}
+
+	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
+	if !strings.Contains(view, "Cached Installed") || !strings.Contains(view, "Installed") {
+		t.Fatalf("installed package row should show Installed from cache, got:\n%s", view)
+	}
+}
+
+func TestCatalogListShowsNotInstalledStatusFromCache(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Cached Missing",
+		PackageID:    "cached-missing",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "cached-missing.exe",
+	}
+	model := Model{
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"cached-missing": {Installed: false, Checked: true},
+		},
+	}
+
+	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
+	if !strings.Contains(view, "Cached Missing") || !strings.Contains(view, "Not installed") {
+		t.Fatalf("not installed package row should show Not installed from cache, got:\n%s", view)
+	}
+}
+
+func TestCatalogListHidesStatusWithoutDetectionMetadata(t *testing.T) {
+	app := catalog.Package{
+		Name:      "No Detection",
+		PackageID: "no-detection",
+	}
+	model := Model{
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"no-detection": {Installed: true, Checked: true},
+		},
+	}
+
+	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
+	if strings.Contains(view, "Installed") || strings.Contains(view, "Not installed") {
+		t.Fatalf("package without detection metadata should not show installed status, got:\n%s", view)
+	}
+}
+
+func TestCatalogSearchResultsShowInstalledStatus(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Search Installed Tool",
+		Description:  "Searchable tool.",
+		PackageID:    "search-installed-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "search-installed-tool.exe",
+	}
+	model := Model{
+		categories:    []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "search",
+		selected:      map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"search-installed-tool": {Installed: true, Checked: true},
+		},
+	}
+
+	view := stripANSI(strings.Join(model.catalogListLines(), "\n"))
+	if !strings.Contains(view, "Search Installed Tool") || !strings.Contains(view, "Installed") {
+		t.Fatalf("search result row should show installed status from cache, got:\n%s", view)
+	}
+}
+
+func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Render Cached Tool",
+		Description:  "Cached render test.",
+		PackageID:    "render-cached-tool",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "render-cached-tool.exe",
+	}
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"render-cached-tool": {Installed: true, Checked: true},
+		},
+		detectInstalled: func(catalog.Package) bool {
+			t.Fatal("render should not call installed detection")
+			return false
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Installed") {
+		t.Fatalf("render should show cached installed status, got:\n%s", view)
+	}
+}
+
 func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
 	app := catalog.Package{
 		Name:        "Long App",

@@ -146,7 +146,7 @@ func (m Model) categoryCatalogListLines() []string {
 		if m.selected[app.PackageID] {
 			box = selectedStyle.Render("[x]")
 		}
-		line := fmt.Sprintf("%s %s", box, app.Name)
+		line := fmt.Sprintf("%s %s", box, m.packageListLabel(app))
 		if len(categories)+i == m.catalogCursor {
 			line = activeItemStyle.Render("> " + line)
 		} else {
@@ -166,7 +166,7 @@ func (m Model) fullCatalogListLines() []string {
 		if m.selected[item.Package.PackageID] {
 			box = selectedStyle.Render("[x]")
 		}
-		line := fmt.Sprintf("%s %s", box, item.Package.Name)
+		line := fmt.Sprintf("%s %s", box, m.packageListLabel(item.Package))
 		if i == m.catalogCursor {
 			line = activeItemStyle.Render("> " + line)
 		} else {
@@ -175,6 +175,25 @@ func (m Model) fullCatalogListLines() []string {
 		lines = append(lines, line)
 	}
 	return lines
+}
+
+func (m Model) packageListLabel(app catalog.Package) string {
+	status := m.packageListStatusLabel(app)
+	if status == "" {
+		return app.Name
+	}
+	return fmt.Sprintf("%-24s %s", app.Name, mutedStyle.Render(status))
+}
+
+func (m Model) packageListStatusLabel(app catalog.Package) string {
+	status, ok := m.installedStatus(app)
+	if !ok || !status.Checked {
+		return ""
+	}
+	if status.Installed {
+		return "Installed"
+	}
+	return "Not installed"
 }
 
 func (m Model) visibleCatalogLines(lines []string, height int) []string {
