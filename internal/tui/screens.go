@@ -79,6 +79,9 @@ func (m Model) viewCatalog() string {
 		mutedStyle.Render(fmt.Sprintf("%d selected", len(m.selectedApps()))),
 		mutedStyle.Render(m.catalogHeaderLine()),
 	}
+	if m.appliedPreset != "" {
+		parts = append(parts, mutedStyle.Render("Preset: "+m.appliedPreset))
+	}
 	if m.searchActive() {
 		parts = append(parts,
 			mutedStyle.Render("Search: "+m.searchInputText()),
@@ -95,14 +98,42 @@ func (m Model) viewCatalog() string {
 	if m.searchFocused {
 		parts = append(parts, "", hotkeyBar("up/down move", "enter done", "backspace edit", "esc clear", "q quit"))
 	} else if m.searchActive() {
-		parts = append(parts, "", hotkeyBar("up/down move", "space select", "i install", "esc clear", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "space select", "p presets", "i install", "esc clear", "q quit"))
 	} else if m.catalogMode == catalogModeFull {
-		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "i install", "esc back/clear", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "p presets", "i install", "esc back/clear", "q quit"))
 	} else {
-		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "esc back", "i install", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "p presets", "esc back", "i install", "q quit"))
 	}
 
 	return place(strings.Join(parts, "\n"), m.width, m.height)
+}
+
+func (m Model) viewPresetPicker() string {
+	presets := m.availablePresets()
+	lines := []string{
+		titleStyle.Render("Presets"),
+		"",
+	}
+	if len(presets) == 0 {
+		lines = append(lines, mutedStyle.Render("No presets available."))
+	} else {
+		for i, preset := range presets {
+			name := preset.Name
+			if i == m.presetCursor {
+				name = activeItemStyle.Render("> " + preset.Name)
+			} else {
+				name = "  " + preset.Name
+			}
+			lines = append(lines,
+				name,
+				"  "+mutedStyle.Render(preset.Description),
+				"  "+mutedStyle.Render(fmt.Sprintf("%d packages", len(preset.Packages))),
+				"",
+			)
+		}
+	}
+	lines = append(lines, hotkeyBar("up/down move", "enter apply", "esc back", "q quit"))
+	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
 func (m Model) catalogListLines(width int) []string {

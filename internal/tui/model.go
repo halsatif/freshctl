@@ -11,6 +11,7 @@ import (
 	"github.com/halsatif/freshctl/internal/catalog"
 	"github.com/halsatif/freshctl/internal/detection"
 	"github.com/halsatif/freshctl/internal/installer"
+	presetpkg "github.com/halsatif/freshctl/internal/presets"
 )
 
 type screen int
@@ -19,6 +20,7 @@ const (
 	screenWelcome screen = iota
 	screenModeSelect
 	screenCatalog
+	screenPresetPicker
 	screenReview
 	screenInstall
 	screenBootstrap
@@ -47,6 +49,9 @@ type Model struct {
 	catalogScroll   int
 	modeCursor      int
 	catalogMode     catalogMode
+	presets         []presetpkg.Preset
+	presetCursor    int
+	appliedPreset   string
 	searchFocused   bool
 	searchQuery     string
 	searchCursor    bool
@@ -147,6 +152,7 @@ func NewModel(args []string) Model {
 	model := Model{
 		screen:          initialScreen,
 		categories:      categories,
+		presets:         presetpkg.Default(),
 		selected:        selected,
 		bootstrapBack:   screenWelcome,
 		bootstrapStatus: bootstrapStatus,
@@ -197,6 +203,8 @@ func (m Model) View() string {
 		return m.viewModeSelect()
 	case screenCatalog:
 		return m.viewCatalog()
+	case screenPresetPicker:
+		return m.viewPresetPicker()
 	case screenReview:
 		return m.viewReview()
 	case screenInstall:
@@ -307,6 +315,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleModeSelectKey(msg)
 	case screenCatalog:
 		return m.handleCatalogKey(msg)
+	case screenPresetPicker:
+		return m.handlePresetPickerKey(msg)
 	case screenReview:
 		return m.handleReviewKey(msg)
 	case screenInstall:
@@ -428,6 +438,12 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenReview
 		m.reviewScroll = 0
 		return m, tea.ClearScreen
+	case "p":
+		m.screen = screenPresetPicker
+		m.presetCursor = 0
+		m.searchFocused = false
+		m.searchCursor = false
+		return m, tea.ClearScreen
 	case "/":
 		m.searchFocused = true
 		m.searchCursor = true
@@ -437,6 +453,37 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, searchCursorTickCmd()
 	}
 
+	return m, nil
+}
+
+func (m Model) handlePresetPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch keyName(msg) {
+	case "up", "k":
+		m.movePresetCursor(-1)
+	case "down", "j":
+		m.movePresetCursor(1)
+	case "esc", "backspace", "h":
+		m.screen = screenCatalog
+		return m, tea.ClearScreen
+	case "enter":
+		presets := m.availablePresets()
+		if len(presets) == 0 {
+			m.screen = screenCatalog
+			m.notice = "No presets available."
+			return m, tea.ClearScreen
+		}
+		if m.presetCursor < 0 || m.presetCursor >= len(presets) {
+			m.presetCursor = 0
+		}
+		m.applyPreset(presets[m.presetCursor])
+		m.screen = screenCatalog
+		m.searchFocused = false
+		m.searchCursor = false
+		m.searchQuery = ""
+		m.catalogCursor = 0
+		m.catalogScroll = 0
+		return m, tea.ClearScreen
+	}
 	return m, nil
 }
 
@@ -506,6 +553,21 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) moveReviewScroll(delta int) {
 	m.reviewScroll += delta
 	m.clampReviewScroll()
+}
+
+func (m *Model) movePresetCursor(delta int) {
+	presets := m.availablePresets()
+	if len(presets) == 0 {
+		m.presetCursor = 0
+		return
+	}
+	m.presetCursor += delta
+	if m.presetCursor < 0 {
+		m.presetCursor = len(presets) - 1
+	}
+	if m.presetCursor >= len(presets) {
+		m.presetCursor = 0
+	}
 }
 
 func (m *Model) clampReviewScroll() {
@@ -1160,6 +1222,43 @@ func (m Model) selectedApps() []catalog.Package {
 	apps := make([]catalog.Package, 0)
 	m.collectSelectedApps(m.categories, &apps)
 	return apps
+}
+
+func (m Model) availablePresets() []presetpkg.Preset {
+	if len(m.presets) > 0 {
+		return m.presets
+	}
+	return presetpkg.Default()
+}
+
+func (m *Model) applyPreset(preset presetpkg.Preset) {
+	if m.selected == nil {
+		m.selected = make(map[string]bool)
+	}
+	known := m.catalogPackageIDs()
+	added := 0
+	for _, packageID := range preset.Packages {
+		if !known[packageID] {
+			continue
+		}
+		if !m.selected[packageID] {
+			added++
+		}
+		m.selected[packageID] = true
+	}
+	m.appliedPreset = preset.Name
+	m.notice = ""
+	if added == 0 {
+		m.notice = "Preset applied. No new packages were added."
+	}
+}
+
+func (m Model) catalogPackageIDs() map[string]bool {
+	ids := make(map[string]bool)
+	for _, app := range collectModelPackages(m.categories) {
+		ids[app.PackageID] = true
+	}
+	return ids
 }
 
 func (m Model) collectSelectedApps(categories []catalog.Category, apps *[]catalog.Package) {

@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/halsatif/freshctl/internal/catalog"
 	"github.com/halsatif/freshctl/internal/installer"
+	presetpkg "github.com/halsatif/freshctl/internal/presets"
 )
 
 func TestCatalogViewRendersSingleCleanScreen(t *testing.T) {
@@ -62,6 +63,182 @@ func TestCatalogViewHeightStaysStableAcrossNavigation(t *testing.T) {
 	browserLines := strings.Split(browsers.View(), "\n")
 	if len(rootLines) != len(browserLines) {
 		t.Fatalf("catalog view line count should stay stable, root=%d browsers=%d", len(rootLines), len(browserLines))
+	}
+}
+
+func TestCatalogPKeyOpensPresetPicker(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		selected:    map[string]bool{},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	got := updated.(Model)
+
+	if got.screen != screenPresetPicker {
+		t.Fatalf("p should open preset picker, got screen %v", got.screen)
+	}
+}
+
+func TestPresetPickerRendersPresets(t *testing.T) {
+	model := Model{
+		screen: screenPresetPicker,
+		width:  100,
+		height: 32,
+		presets: []presetpkg.Preset{{
+			ID:          "developer",
+			Name:        "Developer",
+			Description: "Common tools for coding.",
+			Packages:    []string{"vscode", "git"},
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Presets") || !strings.Contains(view, "Developer") || !strings.Contains(view, "2 packages") {
+		t.Fatalf("preset picker should render preset name, description, and package count, got:\n%s", view)
+	}
+	if !strings.Contains(view, "enter apply") || !strings.Contains(view, "esc back") {
+		t.Fatalf("preset picker should render footer, got:\n%s", view)
+	}
+}
+
+func TestPresetPickerEnterAppliesPreset(t *testing.T) {
+	model := Model{
+		screen:       screenPresetPicker,
+		width:        100,
+		height:       32,
+		categories:   catalog.Default(),
+		selected:     map[string]bool{},
+		presetCursor: 0,
+		presets: []presetpkg.Preset{{
+			ID:          "minimal",
+			Name:        "Minimal",
+			Description: "Small setup.",
+			Packages:    []string{"firefox", "7zip", "everything"},
+		}},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+
+	if got.screen != screenCatalog {
+		t.Fatalf("applying preset should return to catalog, got screen %v", got.screen)
+	}
+	for _, id := range []string{"firefox", "7zip", "everything"} {
+		if !got.selected[id] {
+			t.Fatalf("preset package %q should be selected", id)
+		}
+	}
+	if got.appliedPreset != "Minimal" {
+		t.Fatalf("applied preset header should remember preset name, got %q", got.appliedPreset)
+	}
+}
+
+func TestPresetApplyPreservesManualSelections(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		categories: catalog.Default(),
+		selected:   map[string]bool{"vlc": true},
+		presets: []presetpkg.Preset{{
+			ID:       "privacy",
+			Name:     "Privacy",
+			Packages: []string{"firefox", "signal"},
+		}},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+
+	if !got.selected["vlc"] || !got.selected["firefox"] || !got.selected["signal"] {
+		t.Fatalf("preset should preserve existing selections and add preset packages, got %#v", got.selected)
+	}
+}
+
+func TestPresetPickerEscReturnsWithoutApplying(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		categories: catalog.Default(),
+		selected:   map[string]bool{},
+		presets: []presetpkg.Preset{{
+			ID:       "minimal",
+			Name:     "Minimal",
+			Packages: []string{"firefox"},
+		}},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+
+	if got.screen != screenCatalog {
+		t.Fatalf("esc should return to catalog, got screen %v", got.screen)
+	}
+	if got.selected["firefox"] {
+		t.Fatal("esc should not apply preset")
+	}
+}
+
+func TestPresetPickerQQuits(t *testing.T) {
+	model := Model{screen: screenPresetPicker}
+
+	_, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("q should return quit command from preset picker")
+	}
+}
+
+func TestPresetApplyIgnoresMissingPackageReferences(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		categories: catalog.Default(),
+		selected:   map[string]bool{},
+		presets: []presetpkg.Preset{{
+			ID:       "broken",
+			Name:     "Broken",
+			Packages: []string{"firefox", "missing-package-id"},
+		}},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+
+	if !got.selected["firefox"] {
+		t.Fatal("valid preset package should be selected")
+	}
+	if got.selected["missing-package-id"] {
+		t.Fatal("missing preset package reference should be ignored")
+	}
+}
+
+func TestPresetApplyUpdatesSelectedCountAndClearsSearch(t *testing.T) {
+	model := Model{
+		screen:        screenPresetPicker,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "fire",
+		selected:      map[string]bool{},
+		presets: []presetpkg.Preset{{
+			ID:       "minimal",
+			Name:     "Minimal",
+			Packages: []string{"firefox", "7zip", "everything"},
+		}},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+	view := stripANSI(got.View())
+
+	if got.searchFocused || got.searchQuery != "" {
+		t.Fatalf("applying preset should clear search, focused=%v query=%q", got.searchFocused, got.searchQuery)
+	}
+	if !strings.Contains(view, "3 selected") || !strings.Contains(view, "Preset: Minimal") {
+		t.Fatalf("catalog should show updated selected count and preset header, got:\n%s", view)
 	}
 }
 
