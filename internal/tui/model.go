@@ -63,6 +63,7 @@ type Model struct {
 	fullLog                []string
 	showFullLog            bool
 	results                []installer.Result
+	initialSkippedResults  []installer.Result
 	appStatus              map[string]string
 	appElapsed             map[string]time.Duration
 	currentApp             catalog.Package
@@ -672,7 +673,7 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 				m.appElapsed[m.currentApp.PackageID] = time.Since(m.currentStart)
 			}
 		}
-		m.results = event.Results
+		m.results = append(append([]installer.Result{}, m.initialSkippedResults...), event.Results...)
 		m.installDone = true
 		if !m.installStatusRefreshed {
 			m.RefreshInstalledStatus()
@@ -841,10 +842,24 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.fullLog = nil
 	m.showFullLog = false
 	m.results = nil
+	m.initialSkippedResults = nil
 	m.appStatus = make(map[string]string, len(apps))
 	m.appElapsed = make(map[string]time.Duration, len(apps))
+	appsToInstall := make([]catalog.Package, 0, len(apps))
 	for _, app := range apps {
+		if m.shouldSkipInstalled(app) {
+			m.appStatus[app.PackageID] = "skipped"
+			m.initialSkippedResults = append(m.initialSkippedResults, installer.Result{
+				App:     app,
+				Skipped: true,
+				Err:     installer.ErrInstallSkipped,
+			})
+			m.installLog = append(m.installLog, "skipped "+app.Name+" (already installed)")
+			m.fullLog = append(m.fullLog, "skipped already installed: "+app.Name)
+			continue
+		}
 		m.appStatus[app.PackageID] = "pending"
+		appsToInstall = append(appsToInstall, app)
 	}
 	m.currentApp = catalog.Package{}
 	m.currentStep = 0
@@ -856,9 +871,24 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.installStatusRefreshed = false
 	m.installEvents = make(chan installer.Event)
 	m.skipInstall = make(chan struct{}, 1)
+	if len(appsToInstall) == 0 {
+		m.results = append([]installer.Result{}, m.initialSkippedResults...)
+		m.installDone = true
+		m.installStatusRefreshed = true
+		m.skipInstall = nil
+		m.currentCmd = "already installed packages skipped."
+		m.installLog = append(m.installLog, "all selected packages are already installed")
+		m.fullLog = append(m.fullLog, "all selected packages were skipped because they are already installed")
+		return m, tea.ClearScreen
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelInstall = cancel
-	return m, tea.Batch(tea.ClearScreen, startInstallCmd(ctx, apps, m.installEvents, m.skipInstall), installTickCmd())
+	return m, tea.Batch(tea.ClearScreen, startInstallCmd(ctx, appsToInstall, m.installEvents, m.skipInstall), installTickCmd())
+}
+
+func (m Model) shouldSkipInstalled(app catalog.Package) bool {
+	status, ok := m.installedStatus(app)
+	return ok && status.Checked && status.Installed
 }
 
 func (m Model) currentApps() []catalog.Package {

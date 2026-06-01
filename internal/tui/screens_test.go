@@ -669,6 +669,155 @@ func TestCatalogReflectsRefreshedInstalledStatusAfterInstall(t *testing.T) {
 	}
 }
 
+func TestStartInstallSkipsInstalledPackages(t *testing.T) {
+	installedApp := catalog.Package{
+		Name:         "Installed App",
+		PackageID:    "installed-app",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "installed-app.exe",
+	}
+	m := Model{
+		selected: map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"installed-app": {Installed: true, Checked: true},
+		},
+	}
+
+	updated, _ := m.startInstall([]catalog.Package{installedApp})
+	got := updated.(Model)
+
+	if got.appStatus["installed-app"] != "skipped" {
+		t.Fatalf("installed package should be skipped, got status %q", got.appStatus["installed-app"])
+	}
+	if !got.installDone {
+		t.Fatal("all-installed selection should complete without launching Chocolatey")
+	}
+	if len(got.results) != 1 || !got.results[0].Skipped {
+		t.Fatalf("skipped package should appear in results, got %#v", got.results)
+	}
+}
+
+func TestStartInstallLeavesNotInstalledPackagesPending(t *testing.T) {
+	app := catalog.Package{
+		Name:         "Missing App",
+		PackageID:    "missing-app",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "missing-app.exe",
+	}
+	m := Model{
+		selected: map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"missing-app": {Installed: false, Checked: true},
+		},
+	}
+
+	updated, _ := m.startInstall([]catalog.Package{app})
+	got := updated.(Model)
+
+	if got.appStatus["missing-app"] != "pending" {
+		t.Fatalf("not installed package should remain pending for install, got %q", got.appStatus["missing-app"])
+	}
+	if got.installDone {
+		t.Fatal("not installed package should start normal install flow")
+	}
+	if len(got.initialSkippedResults) != 0 {
+		t.Fatalf("not installed package should not be pre-skipped, got %#v", got.initialSkippedResults)
+	}
+}
+
+func TestStartInstallInstallsPackagesWithoutDetectionMetadata(t *testing.T) {
+	app := catalog.Package{Name: "Unknown Detection App", PackageID: "unknown-detection-app"}
+	m := Model{
+		selected: map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"unknown-detection-app": {Installed: true, Checked: true},
+		},
+	}
+
+	updated, _ := m.startInstall([]catalog.Package{app})
+	got := updated.(Model)
+
+	if got.appStatus["unknown-detection-app"] != "pending" {
+		t.Fatalf("package without detection metadata should install normally, got %q", got.appStatus["unknown-detection-app"])
+	}
+	if len(got.initialSkippedResults) != 0 {
+		t.Fatalf("package without detection metadata should not be skipped, got %#v", got.initialSkippedResults)
+	}
+}
+
+func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
+	skippedApp := catalog.Package{
+		Name:         "Already There",
+		PackageID:    "already-there",
+		DetectMethod: catalog.DetectPath,
+		DetectValue:  "already-there.exe",
+	}
+	m := Model{
+		width:    100,
+		height:   24,
+		selected: map[string]bool{},
+		installed: map[string]InstalledStatus{
+			"already-there": {Installed: true, Checked: true},
+		},
+	}
+
+	updated, _ := m.startInstall([]catalog.Package{skippedApp})
+	got := updated.(Model)
+	view := stripANSI(got.View())
+
+	if !strings.Contains(view, "skipped") || !strings.Contains(view, "Already There") {
+		t.Fatalf("skipped package should render in install summary, got:\n%s", view)
+	}
+	if strings.Contains(view, "FAIL") || strings.Contains(view, "Failures:") {
+		t.Fatalf("skipped package should not count as a failure, got:\n%s", view)
+	}
+	if !strings.Contains(view, "0 failed") {
+		t.Fatalf("skipped package should produce zero failures, got:\n%s", view)
+	}
+	if !strings.Contains(view, "Selected: 1") || !strings.Contains(view, "Already installed: 1") || !strings.Contains(view, "Will install: 0") {
+		t.Fatalf("install counts should include skipped packages, got:\n%s", view)
+	}
+}
+
+func TestInstallSummaryMergesPreSkippedResults(t *testing.T) {
+	skippedApp := catalog.Package{Name: "Skipped App", PackageID: "skipped-app"}
+	installedApp := catalog.Package{Name: "Installed App", PackageID: "installed-app"}
+	model := Model{
+		screen:      screenInstall,
+		categories:  []catalog.Category{{Apps: []catalog.Package{skippedApp, installedApp}}},
+		installApps: []catalog.Package{skippedApp, installedApp},
+		appStatus: map[string]string{
+			"skipped-app":   "skipped",
+			"installed-app": "installed",
+		},
+		selected: map[string]bool{},
+		initialSkippedResults: []installer.Result{{
+			App:     skippedApp,
+			Skipped: true,
+			Err:     installer.ErrInstallSkipped,
+		}},
+		detectInstalled: func(catalog.Package) bool {
+			return false
+		},
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind:    installer.EventSummary,
+			Results: []installer.Result{{App: installedApp, Success: true}},
+		},
+	})
+	got := updated.(Model)
+
+	if len(got.results) != 2 {
+		t.Fatalf("summary should include pre-skipped and installed results, got %#v", got.results)
+	}
+	if !got.results[0].Skipped || !got.results[1].Success {
+		t.Fatalf("summary result states are wrong, got %#v", got.results)
+	}
+}
+
 func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
 	app := catalog.Package{
 		Name:        "Long App",

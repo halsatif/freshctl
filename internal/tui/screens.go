@@ -324,6 +324,7 @@ func (m Model) viewInstall() string {
 
 	lines := []string{
 		titleStyle.Render("install"),
+		mutedStyle.Render(m.installPlanLine()),
 		fitLine(fmt.Sprintf("%s current: %s%s %s", spin, currentName, elapsed, mutedStyle.Render(progress)), contentWidth),
 		mutedStyle.Render(command),
 	}
@@ -490,6 +491,20 @@ func (m Model) installSummaryTable(width, visibleRows int) []string {
 		lines = append(lines, fitLine(line, width))
 	}
 	return lines
+}
+
+func (m Model) installPlanLine() string {
+	alreadyInstalled := 0
+	for _, app := range m.installApps {
+		if m.appStatus[app.PackageID] == "skipped" {
+			alreadyInstalled++
+		}
+	}
+	willInstall := len(m.installApps) - alreadyInstalled
+	if willInstall < 0 {
+		willInstall = 0
+	}
+	return fmt.Sprintf("Selected: %d  Already installed: %d  Will install: %d", len(m.installApps), alreadyInstalled, willInstall)
 }
 
 func (m Model) installSummaryRange(visibleRows int) (int, int) {
