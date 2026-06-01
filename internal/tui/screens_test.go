@@ -401,8 +401,8 @@ func TestCatalogListShowsInstalledStatusFromCache(t *testing.T) {
 		},
 	}
 
-	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
-	if !strings.Contains(view, "Cached Installed") || !strings.Contains(view, "Installed") {
+	view := stripANSI(strings.Join(model.fullCatalogListLines(64), "\n"))
+	if !strings.Contains(view, "Cached Installed") || !strings.Contains(view, "OK") {
 		t.Fatalf("installed package row should show Installed from cache, got:\n%s", view)
 	}
 }
@@ -423,8 +423,8 @@ func TestCatalogListShowsNotInstalledStatusFromCache(t *testing.T) {
 		},
 	}
 
-	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
-	if !strings.Contains(view, "Cached Missing") || !strings.Contains(view, "Not installed") {
+	view := stripANSI(strings.Join(model.fullCatalogListLines(64), "\n"))
+	if !strings.Contains(view, "Cached Missing") || !strings.Contains(view, "--") {
 		t.Fatalf("not installed package row should show Not installed from cache, got:\n%s", view)
 	}
 }
@@ -443,8 +443,8 @@ func TestCatalogListHidesStatusWithoutDetectionMetadata(t *testing.T) {
 		},
 	}
 
-	view := stripANSI(strings.Join(model.fullCatalogListLines(), "\n"))
-	if strings.Contains(view, "Installed") || strings.Contains(view, "Not installed") {
+	view := stripANSI(strings.Join(model.fullCatalogListLines(64), "\n"))
+	if strings.Contains(view, "OK") || strings.Contains(view, "--") {
 		t.Fatalf("package without detection metadata should not show installed status, got:\n%s", view)
 	}
 }
@@ -468,8 +468,8 @@ func TestCatalogSearchResultsShowInstalledStatus(t *testing.T) {
 		},
 	}
 
-	view := stripANSI(strings.Join(model.catalogListLines(), "\n"))
-	if !strings.Contains(view, "Search Installed Tool") || !strings.Contains(view, "Installed") {
+	view := stripANSI(strings.Join(model.catalogListLines(64), "\n"))
+	if !strings.Contains(view, "Search Installed Tool") || !strings.Contains(view, "OK") {
 		t.Fatalf("search result row should show installed status from cache, got:\n%s", view)
 	}
 }
@@ -499,7 +499,7 @@ func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "Installed") {
+	if !strings.Contains(view, "OK") {
 		t.Fatalf("render should show cached installed status, got:\n%s", view)
 	}
 }

@@ -57,13 +57,13 @@ func (m Model) viewModeSelect() string {
 
 func (m Model) viewCatalog() string {
 	contentWidth := pageWidth(m.width)
-	itemLines := m.catalogListLines()
+	panelHeight := m.catalogPanelHeight()
+	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
+	itemLines := m.catalogListLines(leftWidth)
 	if len(itemLines) == 0 {
 		itemLines = append(itemLines, "  "+mutedStyle.Render("No packages found."), "  "+mutedStyle.Render("Try a different search term."))
 	}
 
-	panelHeight := m.catalogPanelHeight()
-	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
 	itemLines = m.visibleCatalogLines(itemLines, panelHeight)
 	itemLines = fitCatalogListLines(itemLines, leftWidth)
 	itemLines = padLines(itemLines, panelHeight)
@@ -105,11 +105,11 @@ func (m Model) viewCatalog() string {
 	return place(strings.Join(parts, "\n"), m.width, m.height)
 }
 
-func (m Model) catalogListLines() []string {
+func (m Model) catalogListLines(width int) []string {
 	if m.catalogMode == catalogModeFull || m.searchActive() {
-		return m.fullCatalogListLines()
+		return m.fullCatalogListLines(width)
 	}
-	return m.categoryCatalogListLines()
+	return m.categoryCatalogListLines(width)
 }
 
 func (m Model) searchInputText() string {
@@ -123,7 +123,7 @@ func (m Model) searchInputText() string {
 	return m.searchQuery + cursor
 }
 
-func (m Model) categoryCatalogListLines() []string {
+func (m Model) categoryCatalogListLines(width int) []string {
 	categories := m.currentCategories()
 	apps := m.currentApps()
 	itemLines := make([]string, 0, len(categories)+len(apps))
@@ -146,7 +146,7 @@ func (m Model) categoryCatalogListLines() []string {
 		if m.selected[app.PackageID] {
 			box = selectedStyle.Render("[x]")
 		}
-		line := fmt.Sprintf("%s %s", box, m.packageListLabel(app))
+		line := m.packageListLine(box, app, packageListContentWidth(width))
 		if len(categories)+i == m.catalogCursor {
 			line = activeItemStyle.Render("> " + line)
 		} else {
@@ -158,7 +158,7 @@ func (m Model) categoryCatalogListLines() []string {
 	return itemLines
 }
 
-func (m Model) fullCatalogListLines() []string {
+func (m Model) fullCatalogListLines(width int) []string {
 	items := m.filteredFullCatalogItems()
 	lines := make([]string, 0, len(items))
 	for i, item := range items {
@@ -166,7 +166,7 @@ func (m Model) fullCatalogListLines() []string {
 		if m.selected[item.Package.PackageID] {
 			box = selectedStyle.Render("[x]")
 		}
-		line := fmt.Sprintf("%s %s", box, m.packageListLabel(item.Package))
+		line := m.packageListLine(box, item.Package, packageListContentWidth(width))
 		if i == m.catalogCursor {
 			line = activeItemStyle.Render("> " + line)
 		} else {
@@ -177,12 +177,27 @@ func (m Model) fullCatalogListLines() []string {
 	return lines
 }
 
-func (m Model) packageListLabel(app catalog.Package) string {
+func packageListContentWidth(width int) int {
+	contentWidth := width - 6
+	if contentWidth < 12 {
+		return 12
+	}
+	return contentWidth
+}
+
+func (m Model) packageListLine(box string, app catalog.Package, width int) string {
 	status := m.packageListStatusLabel(app)
 	if status == "" {
-		return app.Name
+		nameWidth := width - ansi.StringWidth(box) - 1
+		return fmt.Sprintf("%s %s", box, fitLine(app.Name, nameWidth))
 	}
-	return fmt.Sprintf("%-24s %s", app.Name, mutedStyle.Render(status))
+
+	statusText := mutedStyle.Render(status)
+	nameWidth := width - ansi.StringWidth(box) - ansi.StringWidth(status) - 2
+	if nameWidth < 4 {
+		nameWidth = 4
+	}
+	return fmt.Sprintf("%s %s %s", box, fitLine(app.Name, nameWidth), statusText)
 }
 
 func (m Model) packageListStatusLabel(app catalog.Package) string {
@@ -191,9 +206,9 @@ func (m Model) packageListStatusLabel(app catalog.Package) string {
 		return ""
 	}
 	if status.Installed {
-		return "Installed"
+		return "OK"
 	}
-	return "Not installed"
+	return "--"
 }
 
 func (m Model) visibleCatalogLines(lines []string, height int) []string {
