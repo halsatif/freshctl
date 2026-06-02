@@ -242,6 +242,130 @@ func TestPresetApplyUpdatesSelectedCountAndClearsSearch(t *testing.T) {
 	}
 }
 
+func TestReviewShowsAppliedPreset(t *testing.T) {
+	model := Model{
+		screen:        screenReview,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		selected:      map[string]bool{"firefox": true},
+		appliedPreset: "Minimal",
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Preset: Minimal") {
+		t.Fatalf("review should show applied preset, got:\n%s", view)
+	}
+}
+
+func TestReviewHidesPresetLineWhenNoneApplied(t *testing.T) {
+	model := Model{
+		screen:     screenReview,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
+		selected:   map[string]bool{"firefox": true},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "Preset:") {
+		t.Fatalf("review should not show preset line without applied preset, got:\n%s", view)
+	}
+}
+
+func TestInstallPlanShowsAppliedPreset(t *testing.T) {
+	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	model := Model{
+		screen:        screenInstall,
+		width:         100,
+		height:        24,
+		installApps:   []catalog.Package{app},
+		appStatus:     map[string]string{"firefox": "pending"},
+		appElapsed:    map[string]time.Duration{},
+		appliedPreset: "Minimal",
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Preset: Minimal") || !strings.Contains(view, "Selected: 1") {
+		t.Fatalf("install plan should show applied preset and counts, got:\n%s", view)
+	}
+}
+
+func TestInstallPlanHidesPresetLineWhenNoneApplied(t *testing.T) {
+	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	model := Model{
+		screen:      screenInstall,
+		width:       100,
+		height:      24,
+		installApps: []catalog.Package{app},
+		appStatus:   map[string]string{"firefox": "pending"},
+		appElapsed:  map[string]time.Duration{},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "Preset:") {
+		t.Fatalf("install plan should not show preset line without applied preset, got:\n%s", view)
+	}
+}
+
+func TestApplyingSecondPresetUpdatesDisplayedPreset(t *testing.T) {
+	model := Model{
+		screen:       screenPresetPicker,
+		width:        100,
+		height:       32,
+		categories:   catalog.Default(),
+		selected:     map[string]bool{},
+		presetCursor: 0,
+		presets: []presetpkg.Preset{
+			{ID: "minimal", Name: "Minimal", Packages: []string{"firefox"}},
+			{ID: "privacy", Name: "Privacy", Packages: []string{"signal"}},
+		},
+	}
+
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	first := updated.(Model)
+	first.screen = screenPresetPicker
+	first.presetCursor = 1
+	updated, _ = first.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+
+	if got.appliedPreset != "Privacy" {
+		t.Fatalf("second preset should update applied preset name, got %q", got.appliedPreset)
+	}
+	if !got.selected["firefox"] || !got.selected["signal"] {
+		t.Fatalf("second preset should preserve additive selections, got %#v", got.selected)
+	}
+}
+
+func TestManualSelectionAfterPresetKeepsPresetLabel(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		selected:      map[string]bool{"firefox": true},
+		appliedPreset: "Minimal",
+	}
+	items := model.filteredFullCatalogItems()
+	for i, item := range items {
+		if item.Package.PackageID == "vlc" {
+			model.catalogCursor = i
+			break
+		}
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeySpace})
+	got := updated.(Model)
+
+	if !got.selected["vlc"] {
+		t.Fatal("manual selection should still toggle package")
+	}
+	if got.appliedPreset != "Minimal" {
+		t.Fatalf("manual selection should not clear applied preset label, got %q", got.appliedPreset)
+	}
+}
+
 func TestCatalogSearchPanelHeightStaysStableWithShortResults(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,

@@ -294,6 +294,9 @@ func (m Model) viewReview() string {
 		mutedStyle.Render(fmt.Sprintf("Packages selected: %d", len(selected))),
 		mutedStyle.Render("Backend: Chocolatey"),
 	}
+	if m.appliedPreset != "" {
+		lines = append(lines, mutedStyle.Render("Preset: "+m.appliedPreset))
+	}
 
 	if len(selected) == 0 {
 		lines = append(lines, "", mutedStyle.Render("No apps selected yet. Press b to return to the catalog."))
@@ -355,10 +358,15 @@ func (m Model) viewInstall() string {
 
 	lines := []string{
 		titleStyle.Render("install"),
+	}
+	if m.appliedPreset != "" {
+		lines = append(lines, mutedStyle.Render("Preset: "+m.appliedPreset))
+	}
+	lines = append(lines,
 		mutedStyle.Render(m.installPlanLine()),
 		fitLine(fmt.Sprintf("%s current: %s%s %s", spin, currentName, elapsed, mutedStyle.Render(progress)), contentWidth),
 		mutedStyle.Render(command),
-	}
+	)
 
 	if !m.showFullLog {
 		lines = append(lines, "", mutedStyle.Render("Logs hidden. Press l to show full logs."))
