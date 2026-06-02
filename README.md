@@ -144,6 +144,24 @@ Future work is focused on a better Windows setup experience: direct installers w
 
 ---
 
+## Profiles
+
+Profiles are experimental and not exposed in the TUI yet.
+
+Current foundation format is JSON:
+
+```json
+{
+  "version": 1,
+  "name": "developer setup",
+  "packages": ["vscode", "git"]
+}
+```
+
+Profile package IDs must exist in the freshctl catalog.
+
+---
+
 ## Windows Sandbox Testing
 
 For clean-system testing, use Windows Sandbox on Windows Pro/Enterprise/Education.
