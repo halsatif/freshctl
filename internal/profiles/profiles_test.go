@@ -204,7 +204,7 @@ func TestReadJSONReportsMissingFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("missing profile should fail")
 	}
-	if want := path + " not found"; err.Error() != want {
+	if want := path + " not found. Export a profile from review with e first"; err.Error() != want {
 		t.Fatalf("missing profile error should be compact, got %q want %q", err.Error(), want)
 	}
 }

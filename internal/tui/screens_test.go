@@ -589,7 +589,7 @@ func TestProfileImportErrorsAreSurfaced(t *testing.T) {
 		err  error
 		want string
 	}{
-		{name: "missing file", err: errors.New("freshctl-profile.json not found"), want: "Profile import failed: freshctl-profile.json not found"},
+		{name: "missing file", err: errors.New("freshctl-profile.json not found. Export a profile from review with e first"), want: "Profile import failed: freshctl-profile.json not found. Export a profile from review with e first"},
 		{name: "invalid json", err: errors.New("invalid JSON"), want: "Profile import failed: invalid JSON"},
 		{name: "validation", err: errors.New(`unknown package id "missing-package"`), want: `Profile import failed: unknown package id "missing-package"`},
 	}

@@ -12,7 +12,7 @@ func ReadJSON(path string, catalogPackages []catalog.Package) (Profile, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Profile{}, fmt.Errorf("%s not found", path)
+			return Profile{}, fmt.Errorf("%s not found. Export a profile from review with e first", path)
 		}
 		return Profile{}, fmt.Errorf("read profile: %w", err)
 	}
