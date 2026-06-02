@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/halsatif/freshctl/internal/catalog"
 	"github.com/halsatif/freshctl/internal/installer"
 	presetpkg "github.com/halsatif/freshctl/internal/presets"
+	"github.com/halsatif/freshctl/internal/profiles"
 )
 
 func TestCatalogViewRendersSingleCleanScreen(t *testing.T) {
@@ -364,6 +366,94 @@ func TestReviewHidesPresetLineWhenNoneApplied(t *testing.T) {
 	view := stripANSI(model.View())
 	if strings.Contains(view, "Preset:") {
 		t.Fatalf("review should not show preset line without applied preset, got:\n%s", view)
+	}
+}
+
+func TestReviewExportsSelectedPackagesToProfile(t *testing.T) {
+	var gotPath string
+	var gotProfile profiles.Profile
+	model := Model{
+		screen:     screenReview,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
+		selected:   map[string]bool{"firefox": true, "git": true, "vscode": true},
+		exportProfile: func(path string, profile profiles.Profile, packages []catalog.Package) error {
+			gotPath = path
+			gotProfile = profile
+			return profiles.Validate(profile, packages)
+		},
+	}
+
+	_, cmd := model.handleReviewKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if cmd == nil {
+		t.Fatal("profile export should return a command")
+	}
+	msg := cmd().(profileExportMsg)
+	updated, _ := model.handleProfileExportMsg(msg)
+	got := updated.(Model)
+
+	if gotPath != profiles.DefaultExportPath {
+		t.Fatalf("profile should export to default path, got %q", gotPath)
+	}
+	if gotProfile.Version != profiles.Version || gotProfile.Name != profiles.DefaultProfileName {
+		t.Fatalf("exported profile should use default metadata, got %#v", gotProfile)
+	}
+	want := []string{"firefox", "vscode", "git"}
+	if !reflect.DeepEqual(gotProfile.Packages, want) {
+		t.Fatalf("exported package ids should match review order, got %#v", gotProfile.Packages)
+	}
+	if !strings.Contains(got.notice, "Profile exported: freshctl-profile.json") {
+		t.Fatalf("successful export should show compact notice, got %q", got.notice)
+	}
+}
+
+func TestReviewExportWithNoSelectedPackagesIsBlocked(t *testing.T) {
+	called := false
+	model := Model{
+		screen:     screenReview,
+		categories: catalog.Default(),
+		selected:   map[string]bool{},
+		exportProfile: func(string, profiles.Profile, []catalog.Package) error {
+			called = true
+			return nil
+		},
+	}
+
+	updated, cmd := model.handleReviewKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	got := updated.(Model)
+
+	if cmd != nil {
+		t.Fatal("empty selection should not start profile export command")
+	}
+	if called {
+		t.Fatal("empty selection should not call profile exporter")
+	}
+	if !strings.Contains(got.notice, "No apps selected") {
+		t.Fatalf("empty selection should show friendly notice, got %q", got.notice)
+	}
+}
+
+func TestReviewProfileExportValidationErrorIsSurfaced(t *testing.T) {
+	model := Model{
+		screen:     screenReview,
+		categories: catalog.Default(),
+		selected:   map[string]bool{"firefox": true},
+		exportProfile: func(string, profiles.Profile, []catalog.Package) error {
+			return errors.New("validation failed")
+		},
+	}
+
+	_, cmd := model.handleReviewKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if cmd == nil {
+		t.Fatal("profile export should return command")
+	}
+	msg := cmd().(profileExportMsg)
+	updated, _ := model.handleProfileExportMsg(msg)
+	got := updated.(Model)
+
+	if !strings.Contains(got.notice, "Profile export failed: validation failed") {
+		t.Fatalf("validation error should be surfaced, got %q", got.notice)
 	}
 }
 

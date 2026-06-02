@@ -146,9 +146,15 @@ Future work is focused on a better Windows setup experience: direct installers w
 
 ## Profiles
 
-Profiles are experimental and not exposed in the TUI yet.
+Profiles are experimental.
 
-Current foundation format is JSON:
+From the review screen, press `e` to export the current selection to:
+
+```text
+freshctl-profile.json
+```
+
+Current profile format is JSON:
 
 ```json
 {
@@ -159,6 +165,7 @@ Current foundation format is JSON:
 ```
 
 Profile package IDs must exist in the freshctl catalog.
+Profile import/apply is coming later.
 
 ---
 

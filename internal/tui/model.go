@@ -12,6 +12,7 @@ import (
 	"github.com/halsatif/freshctl/internal/detection"
 	"github.com/halsatif/freshctl/internal/installer"
 	presetpkg "github.com/halsatif/freshctl/internal/presets"
+	"github.com/halsatif/freshctl/internal/profiles"
 )
 
 type screen int
@@ -44,6 +45,7 @@ type Model struct {
 	categories      []catalog.Category
 	installed       map[string]InstalledStatus
 	detectInstalled func(catalog.Package) bool
+	exportProfile   func(string, profiles.Profile, []catalog.Package) error
 	catalogPath     []int
 	catalogCursor   int
 	catalogScroll   int
@@ -128,6 +130,11 @@ type installTickMsg struct{}
 
 type searchCursorTickMsg struct{}
 
+type profileExportMsg struct {
+	path string
+	err  error
+}
+
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
 	bootstrapStatus := ""
@@ -190,6 +197,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleInstallTick()
 	case searchCursorTickMsg:
 		return m.handleSearchCursorTick()
+	case profileExportMsg:
+		return m.handleProfileExportMsg(msg)
 	}
 
 	return m, nil
@@ -501,6 +510,14 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.reviewScroll = 0
 	case "end":
 		m.reviewScroll = maxInt(0, len(m.selectedApps())-m.reviewVisibleRows())
+	case "e":
+		apps := m.selectedApps()
+		if len(apps) == 0 {
+			m.notice = "No apps selected. Choose packages before exporting a profile."
+			return m, nil
+		}
+		m.notice = "Exporting profile..."
+		return m, exportProfileCmd(m.exportProfile, profiles.DefaultExportPath, profiles.FromPackages(profiles.DefaultProfileName, apps), collectModelPackages(m.categories))
 	case "b", "esc":
 		m.notice = ""
 		m.screen = screenCatalog
@@ -547,6 +564,15 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startInstall(apps)
 	}
 
+	return m, nil
+}
+
+func (m Model) handleProfileExportMsg(msg profileExportMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.notice = "Profile export failed: " + msg.err.Error()
+		return m, nil
+	}
+	m.notice = "Profile exported: " + msg.path
 	return m, nil
 }
 
@@ -1358,6 +1384,18 @@ func startInstallCmd(ctx context.Context, apps []catalog.Package, events chan in
 		go installer.InstallApps(ctx, apps, events, skips)
 		event, ok := <-events
 		return installEventMsg{event: event, ok: ok}
+	}
+}
+
+func exportProfileCmd(writer func(string, profiles.Profile, []catalog.Package) error, path string, profile profiles.Profile, catalogPackages []catalog.Package) tea.Cmd {
+	return func() tea.Msg {
+		if writer == nil {
+			writer = profiles.WriteJSON
+		}
+		return profileExportMsg{
+			path: path,
+			err:  writer(path, profile, catalogPackages),
+		}
 	}
 }
 

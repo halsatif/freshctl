@@ -419,7 +419,7 @@ func (m Model) viewReview() string {
 		lines = append(lines, "", errorStyle.Render(m.notice))
 	}
 
-	lines = append(lines, "", hotkeyBar("up/down scroll", "enter install", "b/esc back", "q quit"))
+	lines = append(lines, "", hotkeyBar("up/down scroll", "e export profile", "enter install", "b/esc back", "q quit"))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 

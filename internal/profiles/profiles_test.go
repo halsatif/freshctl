@@ -1,6 +1,9 @@
 package profiles
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -93,6 +96,88 @@ func TestPackageIDsPreservesOrder(t *testing.T) {
 	got[0] = "changed"
 	if profile.Packages[0] != "vscode" {
 		t.Fatal("PackageIDs should return a copy")
+	}
+}
+
+func TestFromPackagesPreservesSelectionOrder(t *testing.T) {
+	packages := []catalog.Package{
+		{Name: "VS Code", PackageID: "vscode"},
+		{Name: "Git", PackageID: "git"},
+		{Name: "Firefox", PackageID: "firefox"},
+	}
+
+	profile := FromPackages(DefaultProfileName, packages)
+
+	if profile.Version != Version || profile.Name != DefaultProfileName {
+		t.Fatalf("profile should use default metadata, got %#v", profile)
+	}
+	if !reflect.DeepEqual(profile.Packages, []string{"vscode", "git", "firefox"}) {
+		t.Fatalf("profile package ids should preserve order, got %#v", profile.Packages)
+	}
+}
+
+func TestWriteJSONWritesValidProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	profile := Profile{
+		Version:  Version,
+		Name:     DefaultProfileName,
+		Packages: []string{"vscode", "git", "firefox"},
+	}
+
+	if err := WriteJSON(path, profile, testCatalogPackages()); err != nil {
+		t.Fatalf("WriteJSON should write valid profile: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("profile file should exist: %v", err)
+	}
+	var decoded Profile
+	if err := json.Unmarshal(content, &decoded); err != nil {
+		t.Fatalf("profile file should contain valid JSON: %v", err)
+	}
+	if !reflect.DeepEqual(decoded.Packages, profile.Packages) {
+		t.Fatalf("written profile should preserve package ids, got %#v", decoded.Packages)
+	}
+}
+
+func TestWriteJSONSurfacesValidationError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	profile := Profile{
+		Version:  Version,
+		Name:     DefaultProfileName,
+		Packages: []string{"missing-package"},
+	}
+
+	if err := WriteJSON(path, profile, testCatalogPackages()); err == nil {
+		t.Fatal("WriteJSON should fail before writing invalid profile")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("invalid profile should not be written, stat err=%v", err)
+	}
+}
+
+func TestWriteJSONOverwritesExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	if err := os.WriteFile(path, []byte("old content"), 0644); err != nil {
+		t.Fatalf("write existing file: %v", err)
+	}
+	profile := Profile{
+		Version:  Version,
+		Name:     DefaultProfileName,
+		Packages: []string{"firefox"},
+	}
+
+	if err := WriteJSON(path, profile, testCatalogPackages()); err != nil {
+		t.Fatalf("WriteJSON should overwrite existing file: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overwritten profile: %v", err)
+	}
+	if string(content) == "old content" {
+		t.Fatal("existing profile file should be overwritten")
 	}
 }
 
