@@ -756,6 +756,56 @@ func TestManualSelectionAfterPresetKeepsPresetLabel(t *testing.T) {
 	}
 }
 
+func TestEscAfterPresetApplyStaysInCatalogAndClearsPresetLayer(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		selected:      map[string]bool{"firefox": true},
+		appliedPreset: "Minimal",
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+
+	if got.screen != screenCatalog {
+		t.Fatalf("esc after preset apply should stay in catalog, got screen %v", got.screen)
+	}
+	if got.appliedPreset != "" {
+		t.Fatalf("esc should clear preset layer before leaving catalog, got %q", got.appliedPreset)
+	}
+	if !got.selected["firefox"] {
+		t.Fatal("clearing preset layer should not clear selected packages")
+	}
+}
+
+func TestEscAfterProfileImportStaysInCatalogAndClearsProfileLayer(t *testing.T) {
+	model := Model{
+		screen:         screenCatalog,
+		width:          100,
+		height:         32,
+		categories:     catalog.Default(),
+		catalogMode:    catalogModeFull,
+		selected:       map[string]bool{"git": true},
+		appliedProfile: "freshctl profile",
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+
+	if got.screen != screenCatalog {
+		t.Fatalf("esc after profile import should stay in catalog, got screen %v", got.screen)
+	}
+	if got.appliedProfile != "" {
+		t.Fatalf("esc should clear profile layer before leaving catalog, got %q", got.appliedProfile)
+	}
+	if !got.selected["git"] {
+		t.Fatal("clearing profile layer should not clear selected packages")
+	}
+}
+
 func TestCatalogSearchPanelHeightStaysStableWithShortResults(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,

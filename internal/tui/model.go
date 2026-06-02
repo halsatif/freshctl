@@ -433,6 +433,14 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveCatalogCursor(1)
 	case "esc", "backspace", "h":
 		if m.catalogMode == catalogModeFull {
+			if m.hasSelectionSource() {
+				m.clearSelectionSource()
+				m.searchFocused = false
+				m.searchQuery = ""
+				m.catalogCursor = 0
+				m.catalogScroll = 0
+				return m, tea.ClearScreen
+			}
 			m.screen = screenModeSelect
 			m.searchFocused = false
 			m.searchQuery = ""
@@ -1320,6 +1328,15 @@ func (m *Model) applyProfile(profile profiles.Profile, path string) {
 	}
 	m.appliedProfile = profileLabel(profile, path)
 	m.appliedPreset = ""
+}
+
+func (m Model) hasSelectionSource() bool {
+	return m.appliedPreset != "" || m.appliedProfile != ""
+}
+
+func (m *Model) clearSelectionSource() {
+	m.appliedPreset = ""
+	m.appliedProfile = ""
 }
 
 func profileLabel(profile profiles.Profile, path string) string {
