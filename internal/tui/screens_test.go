@@ -86,9 +86,10 @@ func TestCatalogPKeyOpensPresetPicker(t *testing.T) {
 
 func TestPresetPickerRendersPresets(t *testing.T) {
 	model := Model{
-		screen: screenPresetPicker,
-		width:  100,
-		height: 32,
+		screen:     screenPresetPicker,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
 		presets: []presetpkg.Preset{{
 			ID:          "developer",
 			Name:        "Developer",
@@ -103,6 +104,99 @@ func TestPresetPickerRendersPresets(t *testing.T) {
 	}
 	if !strings.Contains(view, "enter apply") || !strings.Contains(view, "esc back") {
 		t.Fatalf("preset picker should render footer, got:\n%s", view)
+	}
+}
+
+func TestPresetPreviewRendersPackageNames(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
+		presets: []presetpkg.Preset{{
+			ID:          "developer",
+			Name:        "Developer",
+			Description: "Common tools for coding.",
+			Packages:    []string{"vscode", "git"},
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Visual Studio Code") || !strings.Contains(view, "Git") {
+		t.Fatalf("preset preview should render package names, got:\n%s", view)
+	}
+	if strings.Contains(view, "vscode") {
+		t.Fatalf("preset preview should not render package ids, got:\n%s", view)
+	}
+}
+
+func TestPresetPreviewChangesWithSelection(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
+		presets: []presetpkg.Preset{
+			{ID: "minimal", Name: "Minimal", Description: "Small setup.", Packages: []string{"firefox"}},
+			{ID: "streaming", Name: "Streaming", Description: "Streaming setup.", Packages: []string{"obs-studio"}},
+		},
+	}
+
+	first := stripANSI(model.View())
+	updated, _ := model.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyDown})
+	second := stripANSI(updated.(Model).View())
+
+	if !strings.Contains(first, "Mozilla Firefox") {
+		t.Fatalf("first preset preview should show Firefox, got:\n%s", first)
+	}
+	if !strings.Contains(second, "OBS Studio") {
+		t.Fatalf("second preset preview should show OBS Studio, got:\n%s", second)
+	}
+}
+
+func TestPresetPreviewClipsLongPackageList(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		width:      100,
+		height:     18,
+		categories: catalog.Default(),
+		presets: []presetpkg.Preset{{
+			ID:          "large",
+			Name:        "Large",
+			Description: "Large setup.",
+			Packages:    []string{"firefox", "7zip", "everything", "vscode", "git", "vlc", "discord", "steam", "signal", "bitwarden"},
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "...and") {
+		t.Fatalf("long preset preview should show clipped package count, got:\n%s", view)
+	}
+	if !strings.Contains(view, "q quit") {
+		t.Fatalf("preset picker footer should remain visible, got:\n%s", view)
+	}
+}
+
+func TestPresetPreviewIgnoresMissingPackageReferences(t *testing.T) {
+	model := Model{
+		screen:     screenPresetPicker,
+		width:      100,
+		height:     32,
+		categories: catalog.Default(),
+		presets: []presetpkg.Preset{{
+			ID:          "partial",
+			Name:        "Partial",
+			Description: "Partial setup.",
+			Packages:    []string{"firefox", "missing-package-id"},
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Mozilla Firefox") {
+		t.Fatalf("preview should render valid package refs, got:\n%s", view)
+	}
+	if strings.Contains(view, "missing-package-id") {
+		t.Fatalf("preview should skip missing package refs, got:\n%s", view)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/halsatif/freshctl/internal/catalog"
+	presetpkg "github.com/halsatif/freshctl/internal/presets"
 )
 
 func (m Model) viewWelcome() string {
@@ -109,31 +110,131 @@ func (m Model) viewCatalog() string {
 }
 
 func (m Model) viewPresetPicker() string {
-	presets := m.availablePresets()
+	contentWidth := pageWidth(m.width)
+	panelHeight := m.presetPanelHeight()
+	leftWidth, rightWidth := catalogPaneWidths(contentWidth)
+
+	listLines := m.presetListLines(leftWidth)
+	listLines = padLines(fitPresetLines(listLines, leftWidth), panelHeight)
+	left := borderStyle.Width(leftWidth).Height(panelHeight).Render(strings.Join(listLines, "\n"))
+	right := borderStyle.Width(rightWidth).Height(panelHeight).Render(m.presetPreviewPanel(rightWidth, panelHeight))
+	content := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
+	if contentWidth < 72 {
+		content = strings.Join([]string{left, "", right}, "\n")
+	}
+
 	lines := []string{
 		titleStyle.Render("Presets"),
 		"",
+		content,
+		"",
+		hotkeyBar("up/down move", "enter apply", "esc back", "q quit"),
 	}
+	return place(strings.Join(lines, "\n"), m.width, m.height)
+}
+
+func (m Model) presetListLines(width int) []string {
+	presets := m.availablePresets()
 	if len(presets) == 0 {
-		lines = append(lines, mutedStyle.Render("No presets available."))
-	} else {
-		for i, preset := range presets {
-			name := preset.Name
-			if i == m.presetCursor {
-				name = activeItemStyle.Render("> " + preset.Name)
-			} else {
-				name = "  " + preset.Name
-			}
-			lines = append(lines,
-				name,
-				"  "+mutedStyle.Render(preset.Description),
-				"  "+mutedStyle.Render(fmt.Sprintf("%d packages", len(preset.Packages))),
-				"",
-			)
+		return []string{"  " + mutedStyle.Render("No presets available.")}
+	}
+
+	lines := make([]string, 0, len(presets))
+	for i, preset := range presets {
+		line := preset.Name
+		if i == m.presetCursor {
+			line = activeItemStyle.Render("> " + line)
+		} else {
+			line = "  " + line
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func (m Model) presetPreviewPanel(width, height int) string {
+	presets := m.availablePresets()
+	if len(presets) == 0 {
+		return fitDetailsLines([]string{"No preset selected."}, width, height)
+	}
+	cursor := m.presetCursor
+	if cursor < 0 || cursor >= len(presets) {
+		cursor = 0
+	}
+	return fitDetailsLines(m.presetPreviewLines(presets[cursor], width, height), width, height)
+}
+
+func (m Model) presetPreviewLines(preset presetpkg.Preset, width, height int) []string {
+	wrapWidth := width - 4
+	if wrapWidth < 18 {
+		wrapWidth = 18
+	}
+	lines := []string{
+		preset.Name,
+		"",
+	}
+	lines = append(lines, wrapText(preset.Description, wrapWidth)...)
+	lines = append(lines, "", "Includes:")
+
+	names := m.presetPackageNames(preset)
+	availableRows := height - len(lines) - 2
+	if availableRows < 1 {
+		availableRows = 1
+	}
+	shown := 0
+	for _, name := range names {
+		if shown >= availableRows {
+			break
+		}
+		lines = append(lines, "- "+name)
+		shown++
+	}
+	if hidden := len(names) - shown; hidden > 0 {
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("...and %d more", hidden)))
+	}
+	lines = append(lines, "", mutedStyle.Render(fmt.Sprintf("%d packages", len(preset.Packages))))
+	return lines
+}
+
+func (m Model) presetPackageNames(preset presetpkg.Preset) []string {
+	byID := make(map[string]string)
+	for _, app := range collectModelPackages(m.categories) {
+		byID[app.PackageID] = app.Name
+	}
+
+	names := make([]string, 0, len(preset.Packages))
+	for _, packageID := range preset.Packages {
+		if name, ok := byID[packageID]; ok {
+			names = append(names, name)
 		}
 	}
-	lines = append(lines, hotkeyBar("up/down move", "enter apply", "esc back", "q quit"))
-	return place(strings.Join(lines, "\n"), m.width, m.height)
+	return names
+}
+
+func (m Model) presetPanelHeight() int {
+	if m.height <= 0 {
+		return 14
+	}
+	height := m.height - 12
+	if height < 8 {
+		return 8
+	}
+	if height > 18 {
+		return 18
+	}
+	return height
+}
+
+func fitPresetLines(lines []string, width int) []string {
+	innerWidth := width - 4
+	if innerWidth < 12 {
+		innerWidth = 12
+	}
+	fitted := make([]string, len(lines))
+	for i, line := range lines {
+		fitted[i] = fitLine(line, innerWidth)
+	}
+	return fitted
 }
 
 func (m Model) catalogListLines(width int) []string {
