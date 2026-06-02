@@ -181,6 +181,65 @@ func TestWriteJSONOverwritesExistingFile(t *testing.T) {
 	}
 }
 
+func TestReadJSONReadsValidProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	content := []byte(`{"version":1,"name":"freshctl profile","packages":["vscode","git"]}`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	profile, err := ReadJSON(path, testCatalogPackages())
+	if err != nil {
+		t.Fatalf("ReadJSON should read valid profile: %v", err)
+	}
+	if profile.Name != DefaultProfileName || !reflect.DeepEqual(profile.Packages, []string{"vscode", "git"}) {
+		t.Fatalf("ReadJSON decoded wrong profile: %#v", profile)
+	}
+}
+
+func TestReadJSONReportsMissingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+
+	_, err := ReadJSON(path, testCatalogPackages())
+	if err == nil {
+		t.Fatal("missing profile should fail")
+	}
+	if want := path + " not found"; err.Error() != want {
+		t.Fatalf("missing profile error should be compact, got %q want %q", err.Error(), want)
+	}
+}
+
+func TestReadJSONReportsInvalidJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	if err := os.WriteFile(path, []byte(`{"version":`), 0644); err != nil {
+		t.Fatalf("write invalid profile: %v", err)
+	}
+
+	_, err := ReadJSON(path, testCatalogPackages())
+	if err == nil {
+		t.Fatal("invalid JSON should fail")
+	}
+	if err.Error() != "invalid JSON" {
+		t.Fatalf("invalid JSON error should be compact, got %q", err.Error())
+	}
+}
+
+func TestReadJSONSurfacesValidationError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultExportPath)
+	content := []byte(`{"version":1,"name":"bad profile","packages":["missing-package"]}`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("write invalid profile: %v", err)
+	}
+
+	_, err := ReadJSON(path, testCatalogPackages())
+	if err == nil {
+		t.Fatal("invalid profile should fail validation")
+	}
+	if err.Error() != `unknown package id "missing-package"` {
+		t.Fatalf("validation error should be surfaced, got %q", err.Error())
+	}
+}
+
 func testCatalogPackages() []catalog.Package {
 	packages := make([]catalog.Package, 0)
 	var walk func([]catalog.Category)

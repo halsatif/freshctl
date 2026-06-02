@@ -316,7 +316,7 @@ func TestPresetApplyUpdatesSelectedCountAndClearsSearch(t *testing.T) {
 		height:        32,
 		categories:    catalog.Default(),
 		catalogMode:   catalogModeFull,
-		searchFocused: true,
+		searchFocused: false,
 		searchQuery:   "fire",
 		selected:      map[string]bool{},
 		presets: []presetpkg.Preset{{
@@ -454,6 +454,212 @@ func TestReviewProfileExportValidationErrorIsSurfaced(t *testing.T) {
 
 	if !strings.Contains(got.notice, "Profile export failed: validation failed") {
 		t.Fatalf("validation error should be surfaced, got %q", got.notice)
+	}
+}
+
+func TestCatalogOKeyImportsProfile(t *testing.T) {
+	var gotPath string
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: false,
+		searchQuery:   "fire",
+		selected:      map[string]bool{},
+		importProfile: func(path string, packages []catalog.Package) (profiles.Profile, error) {
+			gotPath = path
+			return profiles.Profile{
+				Version:  profiles.Version,
+				Name:     "freshctl profile",
+				Packages: []string{"firefox", "git"},
+			}, nil
+		},
+	}
+
+	updated, cmd := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	if cmd == nil {
+		t.Fatal("profile import should return a command")
+	}
+	importing := updated.(Model)
+	if importing.notice != "Importing profile..." {
+		t.Fatalf("catalog should show importing notice, got %q", importing.notice)
+	}
+	msg := cmd().(profileImportMsg)
+	updated, _ = importing.handleProfileImportMsg(msg)
+	got := updated.(Model)
+
+	if gotPath != profiles.DefaultExportPath {
+		t.Fatalf("profile should import from default path, got %q", gotPath)
+	}
+	if !got.selected["firefox"] || !got.selected["git"] {
+		t.Fatalf("profile packages should become selected, got %#v", got.selected)
+	}
+	if got.searchFocused || got.searchQuery != "" {
+		t.Fatalf("profile import should clear search, focused=%v query=%q", got.searchFocused, got.searchQuery)
+	}
+	if got.appliedProfile != "freshctl profile" || got.appliedPreset != "" {
+		t.Fatalf("profile should become current source context, profile=%q preset=%q", got.appliedProfile, got.appliedPreset)
+	}
+}
+
+func TestProfileImportPreservesExistingSelections(t *testing.T) {
+	model := Model{
+		screen:     screenCatalog,
+		categories: catalog.Default(),
+		selected:   map[string]bool{"vlc": true},
+		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+			return profiles.Profile{
+				Version:  profiles.Version,
+				Name:     "freshctl profile",
+				Packages: []string{"firefox"},
+			}, nil
+		},
+	}
+
+	_, cmd := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	msg := cmd().(profileImportMsg)
+	updated, _ := model.handleProfileImportMsg(msg)
+	got := updated.(Model)
+
+	if !got.selected["vlc"] || !got.selected["firefox"] {
+		t.Fatalf("profile import should preserve existing selections and add packages, got %#v", got.selected)
+	}
+}
+
+func TestProfileImportUsesDefaultLabelForEmptyName(t *testing.T) {
+	model := Model{
+		screen:     screenCatalog,
+		categories: catalog.Default(),
+		selected:   map[string]bool{},
+		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+			return profiles.Profile{
+				Version:  profiles.Version,
+				Packages: []string{"firefox"},
+			}, nil
+		},
+	}
+
+	_, cmd := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	msg := cmd().(profileImportMsg)
+	updated, _ := model.handleProfileImportMsg(msg)
+	got := updated.(Model)
+
+	if got.appliedProfile != profiles.DefaultExportPath {
+		t.Fatalf("empty profile name should use default path label, got %q", got.appliedProfile)
+	}
+}
+
+func TestProfileLabelAppearsInCatalogReviewAndInstall(t *testing.T) {
+	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	model := Model{
+		screen:         screenCatalog,
+		width:          100,
+		height:         32,
+		categories:     catalog.Default(),
+		catalogMode:    catalogModeFull,
+		selected:       map[string]bool{"firefox": true},
+		appliedProfile: "freshctl profile",
+	}
+
+	catalogView := stripANSI(model.View())
+	model.screen = screenReview
+	reviewView := stripANSI(model.View())
+	model.screen = screenInstall
+	model.installApps = []catalog.Package{app}
+	model.appStatus = map[string]string{"firefox": "pending"}
+	model.appElapsed = map[string]time.Duration{}
+	installView := stripANSI(model.View())
+
+	for name, view := range map[string]string{
+		"catalog": catalogView,
+		"review":  reviewView,
+		"install": installView,
+	} {
+		if !strings.Contains(view, "Profile: freshctl profile") {
+			t.Fatalf("%s view should show profile label, got:\n%s", name, view)
+		}
+	}
+}
+
+func TestProfileImportErrorsAreSurfaced(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "missing file", err: errors.New("freshctl-profile.json not found"), want: "Profile import failed: freshctl-profile.json not found"},
+		{name: "invalid json", err: errors.New("invalid JSON"), want: "Profile import failed: invalid JSON"},
+		{name: "validation", err: errors.New(`unknown package id "missing-package"`), want: `Profile import failed: unknown package id "missing-package"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			model := Model{
+				screen:     screenCatalog,
+				categories: catalog.Default(),
+				selected:   map[string]bool{},
+				importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+					return profiles.Profile{}, tc.err
+				},
+			}
+
+			_, cmd := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+			msg := cmd().(profileImportMsg)
+			updated, _ := model.handleProfileImportMsg(msg)
+			got := updated.(Model)
+
+			if got.notice != tc.want {
+				t.Fatalf("wrong import error notice, got %q want %q", got.notice, tc.want)
+			}
+		})
+	}
+}
+
+func TestPresetAndProfileContextSwitching(t *testing.T) {
+	model := Model{
+		screen:     screenCatalog,
+		categories: catalog.Default(),
+		selected:   map[string]bool{},
+		presets: []presetpkg.Preset{{
+			ID:       "minimal",
+			Name:     "Minimal",
+			Packages: []string{"firefox"},
+		}},
+		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+			return profiles.Profile{
+				Version:  profiles.Version,
+				Name:     "freshctl profile",
+				Packages: []string{"git"},
+			}, nil
+		},
+	}
+
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	picker := updated.(Model)
+	updated, _ = picker.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	afterPreset := updated.(Model)
+	if afterPreset.appliedPreset != "Minimal" || afterPreset.appliedProfile != "" {
+		t.Fatalf("preset should become current context, profile=%q preset=%q", afterPreset.appliedProfile, afterPreset.appliedPreset)
+	}
+
+	_, cmd := afterPreset.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	msg := cmd().(profileImportMsg)
+	updated, _ = afterPreset.handleProfileImportMsg(msg)
+	afterProfile := updated.(Model)
+	if afterProfile.appliedProfile != "freshctl profile" || afterProfile.appliedPreset != "" {
+		t.Fatalf("profile import should replace preset context, profile=%q preset=%q", afterProfile.appliedProfile, afterProfile.appliedPreset)
+	}
+
+	updated, _ = afterProfile.handleCatalogKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	picker = updated.(Model)
+	updated, _ = picker.handlePresetPickerKey(tea.KeyMsg{Type: tea.KeyEnter})
+	afterSecondPreset := updated.(Model)
+	if afterSecondPreset.appliedPreset != "Minimal" || afterSecondPreset.appliedProfile != "" {
+		t.Fatalf("preset apply should replace profile context, profile=%q preset=%q", afterSecondPreset.appliedProfile, afterSecondPreset.appliedPreset)
+	}
+	if !afterSecondPreset.selected["firefox"] || !afterSecondPreset.selected["git"] {
+		t.Fatalf("context switching should preserve additive selections, got %#v", afterSecondPreset.selected)
 	}
 }
 

@@ -154,6 +154,8 @@ From the review screen, press `e` to export the current selection to:
 freshctl-profile.json
 ```
 
+From the catalog screen, press `o` to import `freshctl-profile.json` and add its packages to the current selection.
+
 Current profile format is JSON:
 
 ```json
@@ -165,7 +167,7 @@ Current profile format is JSON:
 ```
 
 Profile package IDs must exist in the freshctl catalog.
-Profile import/apply is coming later.
+Command-line profile apply is coming later.
 
 ---
 

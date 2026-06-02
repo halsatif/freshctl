@@ -46,6 +46,7 @@ type Model struct {
 	installed       map[string]InstalledStatus
 	detectInstalled func(catalog.Package) bool
 	exportProfile   func(string, profiles.Profile, []catalog.Package) error
+	importProfile   func(string, []catalog.Package) (profiles.Profile, error)
 	catalogPath     []int
 	catalogCursor   int
 	catalogScroll   int
@@ -54,6 +55,7 @@ type Model struct {
 	presets         []presetpkg.Preset
 	presetCursor    int
 	appliedPreset   string
+	appliedProfile  string
 	searchFocused   bool
 	searchQuery     string
 	searchCursor    bool
@@ -135,6 +137,12 @@ type profileExportMsg struct {
 	err  error
 }
 
+type profileImportMsg struct {
+	path    string
+	profile profiles.Profile
+	err     error
+}
+
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
 	bootstrapStatus := ""
@@ -199,6 +207,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSearchCursorTick()
 	case profileExportMsg:
 		return m.handleProfileExportMsg(msg)
+	case profileImportMsg:
+		return m.handleProfileImportMsg(msg)
 	}
 
 	return m, nil
@@ -453,6 +463,9 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchFocused = false
 		m.searchCursor = false
 		return m, tea.ClearScreen
+	case "o":
+		m.notice = "Importing profile..."
+		return m, importProfileCmd(m.importProfile, profiles.DefaultExportPath, collectModelPackages(m.categories))
 	case "/":
 		m.searchFocused = true
 		m.searchCursor = true
@@ -574,6 +587,21 @@ func (m Model) handleProfileExportMsg(msg profileExportMsg) (tea.Model, tea.Cmd)
 	}
 	m.notice = "Profile exported: " + msg.path
 	return m, nil
+}
+
+func (m Model) handleProfileImportMsg(msg profileImportMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.notice = "Profile import failed: " + msg.err.Error()
+		return m, nil
+	}
+	m.applyProfile(msg.profile, msg.path)
+	m.searchFocused = false
+	m.searchCursor = false
+	m.searchQuery = ""
+	m.catalogCursor = 0
+	m.catalogScroll = 0
+	m.notice = "Profile imported: " + m.appliedProfile
+	return m, tea.ClearScreen
 }
 
 func (m *Model) moveReviewScroll(delta int) {
@@ -1273,10 +1301,33 @@ func (m *Model) applyPreset(preset presetpkg.Preset) {
 		m.selected[packageID] = true
 	}
 	m.appliedPreset = preset.Name
+	m.appliedProfile = ""
 	m.notice = ""
 	if added == 0 {
 		m.notice = "Preset applied. No new packages were added."
 	}
+}
+
+func (m *Model) applyProfile(profile profiles.Profile, path string) {
+	if m.selected == nil {
+		m.selected = make(map[string]bool)
+	}
+	known := m.catalogPackageIDs()
+	for _, packageID := range profile.Packages {
+		if known[packageID] {
+			m.selected[packageID] = true
+		}
+	}
+	m.appliedProfile = profileLabel(profile, path)
+	m.appliedPreset = ""
+}
+
+func profileLabel(profile profiles.Profile, path string) string {
+	name := strings.TrimSpace(profile.Name)
+	if name != "" {
+		return name
+	}
+	return path
 }
 
 func (m Model) catalogPackageIDs() map[string]bool {
@@ -1395,6 +1446,20 @@ func exportProfileCmd(writer func(string, profiles.Profile, []catalog.Package) e
 		return profileExportMsg{
 			path: path,
 			err:  writer(path, profile, catalogPackages),
+		}
+	}
+}
+
+func importProfileCmd(reader func(string, []catalog.Package) (profiles.Profile, error), path string, catalogPackages []catalog.Package) tea.Cmd {
+	return func() tea.Msg {
+		if reader == nil {
+			reader = profiles.ReadJSON
+		}
+		profile, err := reader(path, catalogPackages)
+		return profileImportMsg{
+			path:    path,
+			profile: profile,
+			err:     err,
 		}
 	}
 }

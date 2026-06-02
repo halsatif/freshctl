@@ -80,8 +80,8 @@ func (m Model) viewCatalog() string {
 		mutedStyle.Render(fmt.Sprintf("%d selected", len(m.selectedApps()))),
 		mutedStyle.Render(m.catalogHeaderLine()),
 	}
-	if m.appliedPreset != "" {
-		parts = append(parts, mutedStyle.Render("Preset: "+m.appliedPreset))
+	if source := m.selectionSourceLine(); source != "" {
+		parts = append(parts, mutedStyle.Render(source))
 	}
 	if m.searchActive() {
 		parts = append(parts,
@@ -99,11 +99,11 @@ func (m Model) viewCatalog() string {
 	if m.searchFocused {
 		parts = append(parts, "", hotkeyBar("up/down move", "enter done", "backspace edit", "esc clear", "q quit"))
 	} else if m.searchActive() {
-		parts = append(parts, "", hotkeyBar("up/down move", "space select", "p presets", "i install", "esc clear", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "space select", "p presets", "o profile", "i install", "esc clear", "q quit"))
 	} else if m.catalogMode == catalogModeFull {
-		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "p presets", "i install", "esc back/clear", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "p presets", "o profile", "i install", "esc back/clear", "q quit"))
 	} else {
-		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "p presets", "esc back", "i install", "q quit"))
+		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "p presets", "o profile", "esc back", "i install", "q quit"))
 	}
 
 	return place(strings.Join(parts, "\n"), m.width, m.height)
@@ -377,6 +377,16 @@ func (m Model) catalogHeaderLine() string {
 	return "Path: " + m.currentBreadcrumb()
 }
 
+func (m Model) selectionSourceLine() string {
+	if m.appliedProfile != "" {
+		return "Profile: " + m.appliedProfile
+	}
+	if m.appliedPreset != "" {
+		return "Preset: " + m.appliedPreset
+	}
+	return ""
+}
+
 func (m Model) viewReview() string {
 	contentWidth := pageWidth(m.width)
 	selected := m.selectedApps()
@@ -395,8 +405,8 @@ func (m Model) viewReview() string {
 		mutedStyle.Render(fmt.Sprintf("Packages selected: %d", len(selected))),
 		mutedStyle.Render("Backend: Chocolatey"),
 	}
-	if m.appliedPreset != "" {
-		lines = append(lines, mutedStyle.Render("Preset: "+m.appliedPreset))
+	if source := m.selectionSourceLine(); source != "" {
+		lines = append(lines, mutedStyle.Render(source))
 	}
 
 	if len(selected) == 0 {
@@ -460,8 +470,8 @@ func (m Model) viewInstall() string {
 	lines := []string{
 		titleStyle.Render("install"),
 	}
-	if m.appliedPreset != "" {
-		lines = append(lines, mutedStyle.Render("Preset: "+m.appliedPreset))
+	if source := m.selectionSourceLine(); source != "" {
+		lines = append(lines, mutedStyle.Render(source))
 	}
 	lines = append(lines,
 		mutedStyle.Render(m.installPlanLine()),
