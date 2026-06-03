@@ -1,6 +1,7 @@
-const packageCatalog = (window.FRESHCTL_CATALOG || [])
-  .map((pkg) => ({ ...pkg, id: pkg.packageId }))
-  .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+const rawCatalog = (window.FRESHCTL_CATALOG || []).map((pkg) => ({ ...pkg, id: pkg.packageId }));
+const packageCatalog = [...rawCatalog].sort((left, right) =>
+  left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+);
 
 const copyButtons = document.querySelectorAll("[data-copy]");
 const packageModal = document.querySelector("#package-modal");
@@ -12,7 +13,15 @@ const packageClosers = document.querySelectorAll("[data-close-packages]");
 const installSpotlightLink = document.querySelector("[data-spotlight-install]");
 const installSpotlight = document.querySelector("[data-close-install-spotlight]");
 const installCard = document.querySelector("[data-install-card]");
+const profileSearch = document.querySelector("#profile-search");
+const profileCount = document.querySelector("#profile-count");
+const profilePackageList = document.querySelector("#profile-package-list");
+const profileOutput = document.querySelector("#profile-json-output");
+const profileHint = document.querySelector("#profile-hint");
+const profileCopy = document.querySelector("#profile-copy");
+const profileDownload = document.querySelector("#profile-download");
 let installSpotlightTimer;
+const selectedProfilePackages = new Set();
 
 copyButtons.forEach((button) => {
   button.addEventListener("click", async () => {
@@ -64,6 +73,89 @@ function renderPackages() {
       `,
     )
     .join("");
+}
+
+function renderProfileGenerator() {
+  if (!profilePackageList || !profileCount || !profileSearch || !profileOutput) return;
+
+  const query = profileSearch.value.trim().toLowerCase();
+  const visible = rawCatalog.filter((pkg) => matchesProfileQuery(pkg, query));
+  const selectedCount = selectedProfilePackages.size;
+  const profile = buildProfile();
+  const hasSelection = profile.packages.length > 0;
+
+  profileCount.textContent = `${selectedCount} selected • ${visible.length} shown`;
+  profileOutput.textContent = hasSelection ? JSON.stringify(profile, null, 2) : "";
+  if (profileHint) {
+    profileHint.textContent = hasSelection
+      ? "Save this file as freshctl-profile.json and import it with o in freshctl."
+      : "Select packages to generate a profile.";
+  }
+  if (profileCopy) profileCopy.disabled = !hasSelection;
+  if (profileDownload) profileDownload.disabled = !hasSelection;
+
+  if (visible.length === 0) {
+    profilePackageList.innerHTML = '<div class="package-empty">No packages found.</div>';
+    return;
+  }
+
+  profilePackageList.innerHTML = visible
+    .map((pkg) => {
+      const selected = selectedProfilePackages.has(pkg.packageId);
+      return `
+        <button class="profile-package-row${selected ? " selected" : ""}" type="button" data-profile-package="${escapeHtml(pkg.packageId)}">
+          <span>
+            <strong>${escapeHtml(pkg.name)}</strong>
+            <small>${escapeHtml(pkg.description || pkg.packageId)}</small>
+          </span>
+          <code>${selected ? "selected" : pkg.packageId}</code>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function matchesProfileQuery(pkg, query) {
+  if (!query) return true;
+  const haystack = `${pkg.name} ${pkg.packageId} ${pkg.description || ""}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function buildProfile() {
+  return {
+    version: 1,
+    name: "freshctl profile",
+    packages: rawCatalog.filter((pkg) => selectedProfilePackages.has(pkg.packageId)).map((pkg) => pkg.packageId),
+  };
+}
+
+async function copyProfileJson() {
+  if (selectedProfilePackages.size === 0 || !profileCopy) return;
+  const previous = profileCopy.textContent;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(buildProfile(), null, 2));
+    profileCopy.textContent = "Copied";
+    profileCopy.classList.add("copied");
+  } catch {
+    profileCopy.textContent = "Copy failed";
+  }
+  window.setTimeout(() => {
+    profileCopy.textContent = previous;
+    profileCopy.classList.remove("copied");
+  }, 1400);
+}
+
+function downloadProfileJson() {
+  if (selectedProfilePackages.size === 0) return;
+  const blob = new Blob([`${JSON.stringify(buildProfile(), null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "freshctl-profile.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function openPackages(event) {
@@ -124,8 +216,24 @@ function escapeHtml(value) {
 packageOpeners.forEach((button) => button.addEventListener("click", openPackages));
 packageClosers.forEach((button) => button.addEventListener("click", closePackages));
 packageSearch?.addEventListener("input", renderPackages);
+profileSearch?.addEventListener("input", renderProfileGenerator);
+profilePackageList?.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-profile-package]");
+  if (!row) return;
+  const packageId = row.getAttribute("data-profile-package");
+  if (!packageId) return;
+  if (selectedProfilePackages.has(packageId)) {
+    selectedProfilePackages.delete(packageId);
+  } else {
+    selectedProfilePackages.add(packageId);
+  }
+  renderProfileGenerator();
+});
+profileCopy?.addEventListener("click", copyProfileJson);
+profileDownload?.addEventListener("click", downloadProfileJson);
 installSpotlightLink?.addEventListener("click", openInstallSpotlight);
 installSpotlight?.addEventListener("click", closeInstallSpotlight);
+renderProfileGenerator();
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && packageModal?.classList.contains("open")) {

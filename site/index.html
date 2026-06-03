@@ -23,6 +23,7 @@
         <a class="brand" href="#top">freshctl</a>
         <div class="nav-links">
           <a href="#packages" data-open-packages>Packages</a>
+          <a href="#profile">Profile</a>
           <a href="#install" data-spotlight-install>Install</a>
           <a href="https://github.com/halsatif/freshctl">GitHub</a>
         </div>
@@ -51,6 +52,7 @@
               <a class="button primary" href="https://github.com/halsatif/freshctl">GitHub</a>
               <a class="button" href="https://github.com/halsatif/freshctl/releases">Download</a>
               <a class="button" href="#packages" data-open-packages>View Packages</a>
+              <a class="button" href="#profile">Create Profile</a>
             </div>
           </div>
 
@@ -170,6 +172,45 @@ Path: Development &gt; Runtimes
           </div>
         </div>
       </section>
+
+      <section class="section profile-section" id="profile" aria-labelledby="profile-title">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">profiles</p>
+            <h2 id="profile-title">Build a reusable setup file.</h2>
+            <p>
+              Select packages, download <code>freshctl-profile.json</code>, then open freshctl and press
+              <code>o</code> to import it.
+            </p>
+          </div>
+
+          <div class="profile-generator">
+            <div class="profile-browser">
+              <label class="profile-search">
+                <span>search catalog</span>
+                <input id="profile-search" type="search" autocomplete="off" placeholder="name, id, or description" />
+              </label>
+              <p class="profile-count" id="profile-count">0 selected</p>
+              <div class="profile-package-list" id="profile-package-list"></div>
+            </div>
+
+            <div class="profile-output">
+              <div class="profile-output-header">
+                <div>
+                  <p class="eyebrow">output</p>
+                  <h3>freshctl-profile.json</h3>
+                </div>
+                <div class="profile-actions">
+                  <button class="copy-button" type="button" id="profile-copy" disabled>Copy JSON</button>
+                  <button class="copy-button" type="button" id="profile-download" disabled>Download</button>
+                </div>
+              </div>
+              <p class="profile-hint" id="profile-hint">Select packages to generate a profile.</p>
+              <pre class="profile-json"><code id="profile-json-output"></code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
@@ -204,6 +245,8 @@ Path: Development &gt; Runtimes
 		<p class="package-note">
 			package categories and descriptions may be AI-generated and can occasionally be inaccurate.
 		</p>
+      </section>
+    </div>
 
     <script src="catalog.generated.js"></script>
     <script src="script.js"></script>

@@ -148,6 +148,13 @@ Future work is focused on a better Windows setup experience: direct installers w
 
 Profiles are experimental.
 
+You can create a profile on the website:
+
+1. Open `https://freshctl.tech/#profile`.
+2. Select packages.
+3. Download `freshctl-profile.json`.
+4. Open freshctl and press `o` from the catalog screen.
+
 From the review screen, press `e` to export the current selection to:
 
 ```text
