@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/halsatif/freshctl/internal/catalog"
+	"github.com/halsatif/freshctl/internal/sources"
 )
 
 var bannedPackageIDs = []string{
@@ -193,12 +194,8 @@ func validType(packageType catalog.PackageType) bool {
 }
 
 func validSource(source catalog.PackageSource) bool {
-	switch source {
-	case catalog.PackageSourceChocolatey:
-		return true
-	default:
-		return false
-	}
+	_, ok := sources.GetSource(string(source))
+	return ok
 }
 
 func collectPackages(categories []catalog.Category) []catalog.Package {

@@ -11,15 +11,15 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/halsatif/freshctl/internal/catalog"
+	"github.com/halsatif/freshctl/internal/sources"
 	"golang.org/x/sys/windows"
 )
 
 var ErrPackageManagerMissing = errors.New("chocolatey was not found")
 var ErrBrokenPackageManagerInstall = errors.New("broken Chocolatey installation detected")
-var ErrInstallSkipped = errors.New("install skipped")
+var ErrInstallSkipped = sources.ErrInstallSkipped
 
 const (
 	chocolateyDir = `C:\ProgramData\chocolatey`
@@ -51,22 +51,7 @@ type Result struct {
 	Err     error
 }
 
-type InstallError struct {
-	App      catalog.Package
-	ExitCode int
-	Err      error
-}
-
-func (e InstallError) Error() string {
-	if e.ExitCode >= 0 {
-		return fmt.Sprintf("Chocolatey failed for %s (%s) with exit code %d", e.App.Name, e.App.PackageID, e.ExitCode)
-	}
-	return fmt.Sprintf("Chocolatey failed for %s (%s): %v", e.App.Name, e.App.PackageID, e.Err)
-}
-
-func (e InstallError) Unwrap() error {
-	return e.Err
-}
+type InstallError = sources.InstallError
 
 type BootstrapEventKind int
 
@@ -83,15 +68,21 @@ type BootstrapEvent struct {
 }
 
 func CommandFor(app catalog.Package) string {
-	args := installArgs(app)
-	return "choco " + strings.Join(args, " ")
+	source, ok := sources.GetSource(string(app.Source))
+	if !ok {
+		return fmt.Sprintf("unknown package source: %s", app.Source)
+	}
+	if commandSource, ok := source.(sources.CommandSource); ok {
+		return commandSource.Command(app)
+	}
+	return fmt.Sprintf("%s install %s", app.Source, app.PackageID)
 }
 
 func HasPackageManager() bool {
 	if HasBrokenPackageManagerInstall() {
 		return false
 	}
-	return chocoPath() != ""
+	return sources.ChocolateyPath() != ""
 }
 
 func HasBrokenPackageManagerInstall() bool {
@@ -152,15 +143,30 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 		return
 	}
 
-	if HasBrokenPackageManagerInstall() {
-		events <- Event{Kind: EventLog, Line: ErrBrokenPackageManagerInstall.Error()}
-		events <- Event{Kind: EventSummary}
-		return
+	resolvedSources := make(map[string]sources.Source, len(apps))
+	needsChocolatey := false
+	for _, app := range apps {
+		source, ok := sources.GetSource(string(app.Source))
+		if !ok {
+			continue
+		}
+		resolvedSources[app.PackageID] = source
+		if source.ID() == string(catalog.PackageSourceChocolatey) {
+			needsChocolatey = true
+		}
 	}
-	if !HasPackageManager() {
-		events <- Event{Kind: EventLog, Line: ErrPackageManagerMissing.Error()}
-		events <- Event{Kind: EventSummary}
-		return
+
+	if needsChocolatey {
+		if HasBrokenPackageManagerInstall() {
+			events <- Event{Kind: EventLog, Line: ErrBrokenPackageManagerInstall.Error()}
+			events <- Event{Kind: EventSummary}
+			return
+		}
+		if !HasPackageManager() {
+			events <- Event{Kind: EventLog, Line: ErrPackageManagerMissing.Error()}
+			events <- Event{Kind: EventSummary}
+			return
+		}
 	}
 
 	results := make([]Result, 0, len(apps))
@@ -176,8 +182,22 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 		}
 
 		drainSkipRequests(skips)
+		source, ok := resolvedSources[app.PackageID]
+		if !ok {
+			err := fmt.Errorf("unknown package source: %s", app.Source)
+			results = append(results, Result{App: app, Err: err})
+			events <- Event{Kind: EventAppStarted, App: app, Line: err.Error()}
+			events <- Event{Kind: EventAppFinished, App: app, Err: err}
+			continue
+		}
+
 		events <- Event{Kind: EventAppStarted, App: app, Line: CommandFor(app)}
-		err := installOneWithSkip(ctx, app, events, skips)
+		err := source.Install(ctx, app, sources.InstallOptions{
+			Log: func(line string) {
+				events <- Event{Kind: EventLog, App: app, Line: line}
+			},
+			Skip: skips,
+		})
 		result := Result{App: app, Success: err == nil, Err: err}
 		if errors.Is(err, ErrInstallSkipped) {
 			result.Skipped = true
@@ -246,88 +266,6 @@ func BootstrapPackageManager(ctx context.Context, events chan<- BootstrapEvent) 
 	}
 }
 
-func installOneWithSkip(ctx context.Context, app catalog.Package, events chan<- Event, skips <-chan struct{}) error {
-	appCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
-
-	skipped := make(chan struct{}, 1)
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-skips:
-			skipped <- struct{}{}
-			cancel()
-		case <-done:
-		case <-appCtx.Done():
-		}
-	}()
-
-	err := installOne(appCtx, app, events)
-	close(done)
-
-	select {
-	case <-skipped:
-		return ErrInstallSkipped
-	default:
-		return err
-	}
-}
-
-func installOne(ctx context.Context, app catalog.Package, events chan<- Event) error {
-	cmd := exec.CommandContext(ctx, chocoPath(), installArgs(app)...)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return InstallError{App: app, ExitCode: -1, Err: err}
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return InstallError{App: app, ExitCode: -1, Err: err}
-	}
-	if err := cmd.Start(); err != nil {
-		return InstallError{App: app, ExitCode: -1, Err: err}
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go scanOutput(&wg, stdout, app, events)
-	go scanOutput(&wg, stderr, app, events)
-	wg.Wait()
-
-	if err := cmd.Wait(); err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		exitCode := -1
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			exitCode = exitErr.ExitCode()
-		}
-		return InstallError{App: app, ExitCode: exitCode, Err: err}
-	}
-	return nil
-}
-
-func installArgs(app catalog.Package) []string {
-	args := []string{"install", app.PackageID, "-y", "--no-progress"}
-	if app.Prerelease {
-		args = append(args, "--pre")
-	}
-	return args
-}
-
-func chocoPath() string {
-	if path, err := exec.LookPath("choco"); err == nil {
-		return path
-	}
-	if runtime.GOOS == "windows" {
-		if info, err := os.Stat(chocolateyExe); err == nil && !info.IsDir() {
-			return chocolateyExe
-		}
-	}
-	return ""
-}
-
 func hasDirectPackageManager() bool {
 	if runtime.GOOS != "windows" {
 		return false
@@ -354,18 +292,6 @@ func powerShellArray(values []string) string {
 		quoted = append(quoted, "'"+escapePowerShellSingleQuoted(value)+"'")
 	}
 	return "@(" + strings.Join(quoted, ",") + ")"
-}
-
-func scanOutput(wg *sync.WaitGroup, r io.Reader, app catalog.Package, events chan<- Event) {
-	defer wg.Done()
-
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			events <- Event{Kind: EventLog, App: app, Line: line}
-		}
-	}
 }
 
 func scanBootstrapOutput(wg *sync.WaitGroup, r io.Reader, events chan<- BootstrapEvent) {

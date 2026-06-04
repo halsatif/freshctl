@@ -1,0 +1,152 @@
+package sources
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/halsatif/freshctl/internal/catalog"
+)
+
+var ErrInstallSkipped = errors.New("install skipped")
+
+const (
+	chocolateyExe      = `C:\ProgramData\chocolatey\bin\choco.exe`
+	installTimeout     = 30 * time.Minute
+	defaultBufferLines = 64 * 1024
+)
+
+type ChocolateySource struct{}
+
+type InstallError struct {
+	App      catalog.Package
+	ExitCode int
+	Err      error
+}
+
+func (e InstallError) Error() string {
+	if e.ExitCode >= 0 {
+		return fmt.Sprintf("Chocolatey failed for %s (%s) with exit code %d", e.App.Name, e.App.PackageID, e.ExitCode)
+	}
+	return fmt.Sprintf("Chocolatey failed for %s (%s): %v", e.App.Name, e.App.PackageID, e.Err)
+}
+
+func (e InstallError) Unwrap() error {
+	return e.Err
+}
+
+func (s *ChocolateySource) ID() string {
+	return string(catalog.PackageSourceChocolatey)
+}
+
+func (s *ChocolateySource) Command(pkg catalog.Package) string {
+	return "choco " + strings.Join(installArgs(pkg), " ")
+}
+
+func (s *ChocolateySource) Install(ctx context.Context, pkg catalog.Package, opts InstallOptions) error {
+	appCtx, cancel := context.WithTimeout(ctx, installTimeout)
+	defer cancel()
+
+	skipped := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-opts.Skip:
+			skipped <- struct{}{}
+			cancel()
+		case <-done:
+		case <-appCtx.Done():
+		}
+	}()
+
+	err := s.install(appCtx, pkg, opts)
+	close(done)
+
+	select {
+	case <-skipped:
+		return ErrInstallSkipped
+	default:
+		return err
+	}
+}
+
+func (s *ChocolateySource) install(ctx context.Context, pkg catalog.Package, opts InstallOptions) error {
+	choco := ChocolateyPath()
+	if choco == "" {
+		return InstallError{App: pkg, ExitCode: -1, Err: errors.New("chocolatey executable was not found")}
+	}
+
+	cmd := exec.CommandContext(ctx, choco, installArgs(pkg)...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return InstallError{App: pkg, ExitCode: -1, Err: err}
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return InstallError{App: pkg, ExitCode: -1, Err: err}
+	}
+	if err := cmd.Start(); err != nil {
+		return InstallError{App: pkg, ExitCode: -1, Err: err}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go scanOutput(&wg, stdout, opts.Log)
+	go scanOutput(&wg, stderr, opts.Log)
+	wg.Wait()
+
+	if err := cmd.Wait(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		exitCode := -1
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		}
+		return InstallError{App: pkg, ExitCode: exitCode, Err: err}
+	}
+	return nil
+}
+
+func installArgs(pkg catalog.Package) []string {
+	args := []string{"install", pkg.PackageID, "-y", "--no-progress"}
+	if pkg.Prerelease {
+		args = append(args, "--pre")
+	}
+	return args
+}
+
+func ChocolateyPath() string {
+	if path, err := exec.LookPath("choco"); err == nil {
+		return path
+	}
+	if runtime.GOOS == "windows" {
+		if info, err := os.Stat(chocolateyExe); err == nil && !info.IsDir() {
+			return chocolateyExe
+		}
+	}
+	return ""
+}
+
+func scanOutput(wg *sync.WaitGroup, r io.Reader, log func(string)) {
+	defer wg.Done()
+
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), defaultBufferLines)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && log != nil {
+			log(line)
+		}
+	}
+}
