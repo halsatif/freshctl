@@ -178,34 +178,6 @@ Command-line profile apply is coming later.
 
 ---
 
-## Windows Sandbox Testing
-
-For clean-system testing, use Windows Sandbox on Windows Pro/Enterprise/Education.
-
-1. Enable Windows Sandbox in Windows Features.
-2. Open `sandbox\freshctl.wsb`.
-3. In the Sandbox PowerShell window, run:
-
-```powershell
-irm https://freshctl.tech/install.ps1 | iex
-```
-
-Recommended checks:
-
-- installer requests elevation cleanly
-- latest GitHub release is detected
-- `freshctl.exe` installs to `C:\Program Files\freshctl\`
-- `freshctl` is available in a new terminal via PATH
-- Start Menu shortcut exists
-- uninstall mode removes freshctl cleanly
-- selected packages install successfully on a clean system
-
-Sandbox resets when closed, so it is safe for repeated fresh install tests.
-
-Package ID validation is only the first pass. A Chocolatey package can exist and still fail during install if its package script depends on an upstream URL, checksum, or installer that changed. For release testing, smoke-test representative packages in Windows Sandbox instead of relying only on package ID lookup.
-
----
-
 ## Included Packages
 
 freshctl currently includes packages for:
