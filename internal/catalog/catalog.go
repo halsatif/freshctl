@@ -12,6 +12,7 @@ type PackageSource string
 
 const (
 	PackageSourceChocolatey PackageSource = "Chocolatey"
+	PackageSourceWinget     PackageSource = "Winget"
 )
 
 type DetectMethod string

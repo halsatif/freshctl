@@ -36,4 +36,5 @@ func GetSource(id string) (Source, bool) {
 
 func init() {
 	Register(&ChocolateySource{})
+	Register(&WingetSource{})
 }

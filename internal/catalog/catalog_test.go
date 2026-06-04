@@ -66,6 +66,14 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 	}
 }
 
+func TestDefaultPackagesStillUseChocolatey(t *testing.T) {
+	for _, app := range collectPackages(Default()) {
+		if app.Source != PackageSourceChocolatey {
+			t.Fatalf("%s should still use Chocolatey, got %q", app.Name, app.Source)
+		}
+	}
+}
+
 func TestKnownPackageDetectionMetadata(t *testing.T) {
 	apps := packagesByID(Default())
 	examples := map[string]struct {
@@ -217,7 +225,7 @@ func validPackageType(packageType PackageType) bool {
 
 func validPackageSource(source PackageSource) bool {
 	switch source {
-	case PackageSourceChocolatey:
+	case PackageSourceChocolatey, PackageSourceWinget:
 		return true
 	default:
 		return false

@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -21,6 +22,32 @@ func TestChocolateySourceIsRegistered(t *testing.T) {
 func TestUnknownSourceLookup(t *testing.T) {
 	if _, ok := GetSource("MissingSource"); ok {
 		t.Fatal("unexpected source registered for MissingSource")
+	}
+}
+
+func TestWingetSourceIsRegistered(t *testing.T) {
+	source, ok := GetSource(string(catalog.PackageSourceWinget))
+	if !ok {
+		t.Fatal("Winget source should be registered")
+	}
+	if source.ID() != string(catalog.PackageSourceWinget) {
+		t.Fatalf("expected Winget source ID, got %q", source.ID())
+	}
+}
+
+func TestWingetInstallNotImplemented(t *testing.T) {
+	source := &WingetSource{}
+	err := source.Install(context.Background(), catalog.Package{
+		Name:      "Example",
+		PackageID: "Example.App",
+		Source:    catalog.PackageSourceWinget,
+	}, InstallOptions{})
+
+	if !errors.Is(err, ErrWingetNotImplemented) {
+		t.Fatalf("expected ErrWingetNotImplemented, got %v", err)
+	}
+	if err.Error() != "winget source not implemented yet" {
+		t.Fatalf("unexpected Winget error %q", err.Error())
 	}
 }
 
