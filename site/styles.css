@@ -392,7 +392,12 @@ pre code {
   max-height: 460px;
   overflow: auto;
   padding: 0 18px 18px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.profile-package-list::-webkit-scrollbar {
+  display: none;
 }
 
 .profile-package-row {
