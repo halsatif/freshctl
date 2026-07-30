@@ -13,13 +13,13 @@ import (
 	"sync"
 
 	"github.com/halsatif/freshctl/internal/catalog"
-	"github.com/halsatif/freshctl/internal/sources"
+	"github.com/halsatif/freshctl/internal/providers"
 	"golang.org/x/sys/windows"
 )
 
 var ErrPackageManagerMissing = errors.New("chocolatey was not found")
 var ErrBrokenPackageManagerInstall = errors.New("broken Chocolatey installation detected")
-var ErrInstallSkipped = sources.ErrInstallSkipped
+var ErrInstallSkipped = providers.ErrInstallSkipped
 
 const (
 	chocolateyDir = `C:\ProgramData\chocolatey`
@@ -37,7 +37,7 @@ const (
 
 type Event struct {
 	Kind    EventKind
-	App     catalog.Package
+	App     catalog.Application
 	Line    string
 	Success bool
 	Err     error
@@ -45,13 +45,13 @@ type Event struct {
 }
 
 type Result struct {
-	App     catalog.Package
+	App     catalog.Application
 	Success bool
 	Skipped bool
 	Err     error
 }
 
-type InstallError = sources.InstallError
+type InstallError = providers.InstallError
 
 type BootstrapEventKind int
 
@@ -67,22 +67,26 @@ type BootstrapEvent struct {
 	Err   error
 }
 
-func CommandFor(app catalog.Package) string {
-	source, ok := sources.GetSource(string(app.Source))
+func CommandFor(app catalog.Application) string {
+	provider, ok := app.PrimaryProvider()
 	if !ok {
-		return fmt.Sprintf("unknown package source: %s", app.Source)
+		return fmt.Sprintf("no install provider configured for %s", app.Name)
 	}
-	if commandSource, ok := source.(sources.CommandSource); ok {
-		return commandSource.Command(app)
+	installer, ok := providers.Get(provider.Type)
+	if !ok {
+		return fmt.Sprintf("unknown package provider: %s", provider.Type)
 	}
-	return fmt.Sprintf("%s install %s", app.Source, app.PackageID)
+	if commandProvider, ok := installer.(providers.CommandProvider); ok {
+		return commandProvider.Command(app, provider)
+	}
+	return fmt.Sprintf("%s install %s", provider.Type, provider.PackageID)
 }
 
 func HasPackageManager() bool {
 	if HasBrokenPackageManagerInstall() {
 		return false
 	}
-	return sources.ChocolateyPath() != ""
+	return providers.ChocolateyPath() != ""
 }
 
 func HasBrokenPackageManagerInstall() bool {
@@ -134,7 +138,7 @@ func RelaunchElevated(args []string) error {
 	return exec.Command("powershell.exe", "-NoProfile", "-Command", script).Run()
 }
 
-func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Event, skips <-chan struct{}) {
+func InstallApps(ctx context.Context, apps []catalog.Application, events chan<- Event, skips <-chan struct{}) {
 	defer close(events)
 
 	if len(apps) == 0 {
@@ -143,15 +147,27 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 		return
 	}
 
-	resolvedSources := make(map[string]sources.Source, len(apps))
+	type resolvedProvider struct {
+		metadata  catalog.Provider
+		installer providers.Installer
+	}
+
+	resolvedProviders := make(map[string]resolvedProvider, len(apps))
 	needsChocolatey := false
 	for _, app := range apps {
-		source, ok := sources.GetSource(string(app.Source))
+		provider, ok := app.PrimaryProvider()
 		if !ok {
 			continue
 		}
-		resolvedSources[app.PackageID] = source
-		if source.ID() == string(catalog.PackageSourceChocolatey) {
+		providerInstaller, ok := providers.Get(provider.Type)
+		if !ok {
+			continue
+		}
+		resolvedProviders[app.ID] = resolvedProvider{
+			metadata:  provider,
+			installer: providerInstaller,
+		}
+		if provider.Type == catalog.ProviderChocolatey {
 			needsChocolatey = true
 		}
 	}
@@ -182,9 +198,9 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 		}
 
 		drainSkipRequests(skips)
-		source, ok := resolvedSources[app.PackageID]
+		resolved, ok := resolvedProviders[app.ID]
 		if !ok {
-			err := fmt.Errorf("unknown package source: %s", app.Source)
+			err := providerResolutionError(app)
 			results = append(results, Result{App: app, Err: err})
 			events <- Event{Kind: EventAppStarted, App: app, Line: err.Error()}
 			events <- Event{Kind: EventAppFinished, App: app, Err: err}
@@ -192,7 +208,7 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 		}
 
 		events <- Event{Kind: EventAppStarted, App: app, Line: CommandFor(app)}
-		err := source.Install(ctx, app, sources.InstallOptions{
+		err := resolved.installer.Install(ctx, app, resolved.metadata, providers.InstallOptions{
 			Log: func(line string) {
 				events <- Event{Kind: EventLog, App: app, Line: line}
 			},
@@ -207,6 +223,14 @@ func InstallApps(ctx context.Context, apps []catalog.Package, events chan<- Even
 	}
 
 	events <- Event{Kind: EventSummary, Results: results}
+}
+
+func providerResolutionError(app catalog.Application) error {
+	provider, ok := app.PrimaryProvider()
+	if !ok {
+		return fmt.Errorf("no install provider configured for %s", app.Name)
+	}
+	return fmt.Errorf("unknown package provider: %s", provider.Type)
 }
 
 func BootstrapPackageManager(ctx context.Context, events chan<- BootstrapEvent) {

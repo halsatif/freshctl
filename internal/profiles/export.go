@@ -11,10 +11,10 @@ import (
 const DefaultExportPath = "freshctl-profile.json"
 const DefaultProfileName = "freshctl profile"
 
-func FromPackages(name string, packages []catalog.Package) Profile {
+func FromPackages(name string, packages []catalog.Application) Profile {
 	ids := make([]string, 0, len(packages))
 	for _, pkg := range packages {
-		ids = append(ids, pkg.PackageID)
+		ids = append(ids, pkg.ID)
 	}
 	return Profile{
 		Version:  Version,
@@ -23,7 +23,7 @@ func FromPackages(name string, packages []catalog.Package) Profile {
 	}
 }
 
-func WriteJSON(path string, profile Profile, catalogPackages []catalog.Package) error {
+func WriteJSON(path string, profile Profile, catalogPackages []catalog.Application) error {
 	if err := Validate(profile, catalogPackages); err != nil {
 		return err
 	}

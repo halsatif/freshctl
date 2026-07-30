@@ -10,7 +10,7 @@ func TestDefaultPackagesHaveMetadata(t *testing.T) {
 		if strings.TrimSpace(app.Name) == "" {
 			t.Fatal("package name should not be empty")
 		}
-		if strings.TrimSpace(app.PackageID) == "" {
+		if strings.TrimSpace(app.ID) == "" {
 			t.Fatalf("%s should have a package id", app.Name)
 		}
 		if strings.TrimSpace(app.Description) == "" {
@@ -22,8 +22,19 @@ func TestDefaultPackagesHaveMetadata(t *testing.T) {
 		if !validPackageType(app.Type) {
 			t.Fatalf("%s should have a valid package type, got %q", app.Name, app.Type)
 		}
-		if !validPackageSource(app.Source) {
-			t.Fatalf("%s should have a valid source, got %q", app.Name, app.Source)
+		if len(app.Providers) == 0 {
+			t.Fatalf("%s should have at least one provider", app.Name)
+		}
+		for _, provider := range app.Providers {
+			if !validProviderType(provider.Type) {
+				t.Fatalf("%s should have a valid provider type, got %q", app.Name, provider.Type)
+			}
+			if strings.TrimSpace(provider.PackageID) == "" {
+				t.Fatalf("%s should have a provider package ID", app.Name)
+			}
+			if !validInstallStrategy(provider.Strategy) {
+				t.Fatalf("%s should have a valid install strategy, got %q", app.Name, provider.Strategy)
+			}
 		}
 		if !app.Verified {
 			t.Fatalf("%s should be marked verified", app.Name)
@@ -68,9 +79,38 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 
 func TestDefaultPackagesStillUseChocolatey(t *testing.T) {
 	for _, app := range collectPackages(Default()) {
-		if app.Source != PackageSourceChocolatey {
-			t.Fatalf("%s should still use Chocolatey, got %q", app.Name, app.Source)
+		if len(app.Providers) != 1 {
+			t.Fatalf("%s should have exactly one provider during migration, got %d", app.Name, len(app.Providers))
 		}
+		provider := app.Providers[0]
+		if provider.Type != ProviderChocolatey {
+			t.Fatalf("%s should still use Chocolatey, got %q", app.Name, provider.Type)
+		}
+		if provider.PackageID != app.ID {
+			t.Fatalf("%s should preserve its Chocolatey package ID, got %q", app.Name, provider.PackageID)
+		}
+	}
+}
+
+func TestProviderLookup(t *testing.T) {
+	app := packagesByID(Default())["vscode"]
+	provider, ok := app.ProviderByType(ProviderChocolatey)
+	if !ok {
+		t.Fatal("VS Code should expose its Chocolatey provider")
+	}
+	if provider.PackageID != "vscode" {
+		t.Fatalf("unexpected VS Code provider package ID %q", provider.PackageID)
+	}
+}
+
+func TestPrereleaseMetadataBelongsToProvider(t *testing.T) {
+	zen := packagesByID(Default())["zen-browser"]
+	provider, ok := zen.ProviderByType(ProviderChocolatey)
+	if !ok {
+		t.Fatal("Zen Browser should expose its Chocolatey provider")
+	}
+	if !provider.Metadata.Prerelease {
+		t.Fatal("Zen Browser prerelease flag should be stored in provider metadata")
 	}
 }
 
@@ -223,9 +263,18 @@ func validPackageType(packageType PackageType) bool {
 	}
 }
 
-func validPackageSource(source PackageSource) bool {
-	switch source {
-	case PackageSourceChocolatey, PackageSourceWinget:
+func validProviderType(providerType ProviderType) bool {
+	switch providerType {
+	case ProviderChocolatey, ProviderWinget, ProviderDirect, ProviderCommunity:
+		return true
+	default:
+		return false
+	}
+}
+
+func validInstallStrategy(strategy InstallStrategy) bool {
+	switch strategy {
+	case InstallStrategyPackageManager, InstallStrategyDirectInstaller:
 		return true
 	default:
 		return false
@@ -241,8 +290,8 @@ func validDetectMethod(method DetectMethod) bool {
 	}
 }
 
-func collectPackages(categories []Category) []Package {
-	apps := make([]Package, 0)
+func collectPackages(categories []Category) []Application {
+	apps := make([]Application, 0)
 	for _, category := range categories {
 		apps = append(apps, collectPackages(category.Categories)...)
 		apps = append(apps, category.Apps...)
@@ -250,10 +299,10 @@ func collectPackages(categories []Category) []Package {
 	return apps
 }
 
-func packagesByID(categories []Category) map[string]Package {
-	apps := make(map[string]Package)
+func packagesByID(categories []Category) map[string]Application {
+	apps := make(map[string]Application)
 	for _, app := range collectPackages(categories) {
-		apps[app.PackageID] = app
+		apps[app.ID] = app
 	}
 	return apps
 }

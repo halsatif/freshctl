@@ -44,9 +44,9 @@ type Model struct {
 
 	categories      []catalog.Category
 	installed       map[string]InstalledStatus
-	detectInstalled func(catalog.Package) bool
-	exportProfile   func(string, profiles.Profile, []catalog.Package) error
-	importProfile   func(string, []catalog.Package) (profiles.Profile, error)
+	detectInstalled func(catalog.Application) bool
+	exportProfile   func(string, profiles.Profile, []catalog.Application) error
+	importProfile   func(string, []catalog.Application) (profiles.Profile, error)
 	catalogPath     []int
 	catalogCursor   int
 	catalogScroll   int
@@ -67,7 +67,7 @@ type Model struct {
 	installEvents          chan installer.Event
 	skipInstall            chan struct{}
 	cancelInstall          context.CancelFunc
-	installApps            []catalog.Package
+	installApps            []catalog.Application
 	installLog             []string
 	fullLog                []string
 	showFullLog            bool
@@ -75,7 +75,7 @@ type Model struct {
 	initialSkippedResults  []installer.Result
 	appStatus              map[string]string
 	appElapsed             map[string]time.Duration
-	currentApp             catalog.Package
+	currentApp             catalog.Application
 	currentStep            int
 	currentCmd             string
 	currentStart           time.Time
@@ -767,34 +767,34 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		m.currentCmd = event.Line
 		m.currentStep = m.installIndex(event.App) + 1
 		m.currentStart = time.Now()
-		m.appStatus[event.App.PackageID] = "installing"
+		m.appStatus[event.App.ID] = "installing"
 		m.installLog = append(m.installLog, "installing "+event.App.Name)
 		m.fullLog = append(m.fullLog, "> "+event.Line)
 	case installer.EventAppFinished:
-		if !m.currentStart.IsZero() && m.currentApp.PackageID == event.App.PackageID {
-			m.appElapsed[event.App.PackageID] = time.Since(m.currentStart)
+		if !m.currentStart.IsZero() && m.currentApp.ID == event.App.ID {
+			m.appElapsed[event.App.ID] = time.Since(m.currentStart)
 		}
 		if event.Success {
-			m.appStatus[event.App.PackageID] = "installed"
+			m.appStatus[event.App.ID] = "installed"
 			m.installLog = append(m.installLog, "success "+event.App.Name)
 			m.fullLog = append(m.fullLog, "ok: "+event.App.Name)
 		} else if event.Err == installer.ErrInstallSkipped {
-			m.appStatus[event.App.PackageID] = "skipped"
+			m.appStatus[event.App.ID] = "skipped"
 			m.installLog = append(m.installLog, "skipped "+event.App.Name)
 			m.fullLog = append(m.fullLog, "skipped: "+event.App.Name)
 		} else if event.Err == context.DeadlineExceeded {
-			m.appStatus[event.App.PackageID] = "failed"
+			m.appStatus[event.App.ID] = "failed"
 			m.installLog = append(m.installLog, "timed out "+event.App.Name)
 			m.fullLog = append(m.fullLog, "timed out: "+event.App.Name)
 		} else {
-			m.appStatus[event.App.PackageID] = "failed"
+			m.appStatus[event.App.ID] = "failed"
 			m.installLog = append(m.installLog, "failed "+event.App.Name+" - "+event.Err.Error())
 			m.fullLog = append(m.fullLog, "failed: "+event.App.Name+" - "+event.Err.Error())
 		}
 	case installer.EventSummary:
-		if !m.currentStart.IsZero() && m.currentApp.PackageID != "" {
-			if _, ok := m.appElapsed[m.currentApp.PackageID]; !ok {
-				m.appElapsed[m.currentApp.PackageID] = time.Since(m.currentStart)
+		if !m.currentStart.IsZero() && m.currentApp.ID != "" {
+			if _, ok := m.appElapsed[m.currentApp.ID]; !ok {
+				m.appElapsed[m.currentApp.ID] = time.Since(m.currentStart)
 			}
 		}
 		m.results = append(append([]installer.Result{}, m.initialSkippedResults...), event.Results...)
@@ -908,10 +908,10 @@ func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clampInstallScroll()
 		return m, tea.ClearScreen
 	case "s":
-		if !m.installDone && m.skipInstall != nil && m.currentApp.PackageID != "" {
+		if !m.installDone && m.skipInstall != nil && m.currentApp.ID != "" {
 			m.installLog = append(m.installLog, "skipping "+m.currentApp.Name+"...")
 			m.fullLog = append(m.fullLog, "skip requested for "+m.currentApp.Name)
-			m.appStatus[m.currentApp.PackageID] = "skipping"
+			m.appStatus[m.currentApp.ID] = "skipping"
 			select {
 			case m.skipInstall <- struct{}{}:
 			default:
@@ -959,7 +959,7 @@ func (m Model) handleSearchCursorTick() (tea.Model, tea.Cmd) {
 	return m, searchCursorTickCmd()
 }
 
-func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
+func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 	m.screen = screenInstall
 	m.installApps = apps
 	m.installLog = nil
@@ -969,10 +969,10 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	m.initialSkippedResults = nil
 	m.appStatus = make(map[string]string, len(apps))
 	m.appElapsed = make(map[string]time.Duration, len(apps))
-	appsToInstall := make([]catalog.Package, 0, len(apps))
+	appsToInstall := make([]catalog.Application, 0, len(apps))
 	for _, app := range apps {
 		if m.shouldSkipInstalled(app) {
-			m.appStatus[app.PackageID] = "skipped"
+			m.appStatus[app.ID] = "skipped"
 			m.initialSkippedResults = append(m.initialSkippedResults, installer.Result{
 				App:     app,
 				Skipped: true,
@@ -982,10 +982,10 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 			m.fullLog = append(m.fullLog, "skipped already installed: "+app.Name)
 			continue
 		}
-		m.appStatus[app.PackageID] = "pending"
+		m.appStatus[app.ID] = "pending"
 		appsToInstall = append(appsToInstall, app)
 	}
-	m.currentApp = catalog.Package{}
+	m.currentApp = catalog.Application{}
 	m.currentStep = 0
 	m.currentCmd = ""
 	m.currentStart = time.Time{}
@@ -1010,12 +1010,12 @@ func (m Model) startInstall(apps []catalog.Package) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(tea.ClearScreen, startInstallCmd(ctx, appsToInstall, m.installEvents, m.skipInstall), installTickCmd())
 }
 
-func (m Model) shouldSkipInstalled(app catalog.Package) bool {
+func (m Model) shouldSkipInstalled(app catalog.Application) bool {
 	status, ok := m.installedStatus(app)
 	return ok && status.Checked && status.Installed
 }
 
-func (m Model) currentApps() []catalog.Package {
+func (m Model) currentApps() []catalog.Application {
 	return m.currentNode().Apps
 }
 
@@ -1093,7 +1093,7 @@ func (m *Model) toggleCurrentApp() {
 		return
 	}
 
-	m.selected[app.PackageID] = !m.selected[app.PackageID]
+	m.selected[app.ID] = !m.selected[app.ID]
 }
 
 func (m Model) catalogItemCount() int {
@@ -1150,11 +1150,11 @@ func (m Model) catalogVisibleRows() int {
 	return height
 }
 
-func (m Model) currentPackageSelection() (catalog.Package, bool) {
+func (m Model) currentPackageSelection() (catalog.Application, bool) {
 	if m.catalogMode == catalogModeFull || m.searchActive() {
 		items := m.filteredFullCatalogItems()
 		if m.catalogCursor < 0 || m.catalogCursor >= len(items) {
-			return catalog.Package{}, false
+			return catalog.Application{}, false
 		}
 		return items[m.catalogCursor].Package, true
 	}
@@ -1162,13 +1162,13 @@ func (m Model) currentPackageSelection() (catalog.Package, bool) {
 	apps := m.currentApps()
 	appIndex := m.catalogCursor - len(m.currentCategories())
 	if appIndex < 0 || appIndex >= len(apps) {
-		return catalog.Package{}, false
+		return catalog.Application{}, false
 	}
 	return apps[appIndex], true
 }
 
 type fullCatalogItem struct {
-	Package catalog.Package
+	Package catalog.Application
 	Path    string
 }
 
@@ -1179,7 +1179,7 @@ func (m Model) allCatalogItems() []fullCatalogItem {
 		left := strings.ToLower(items[i].Package.Name)
 		right := strings.ToLower(items[j].Package.Name)
 		if left == right {
-			return items[i].Package.PackageID < items[j].Package.PackageID
+			return items[i].Package.ID < items[j].Package.ID
 		}
 		return left < right
 	})
@@ -1226,7 +1226,7 @@ func matchesPackageSearch(item fullCatalogItem, query string) bool {
 
 	fields := []string{
 		item.Package.Name,
-		item.Package.PackageID,
+		item.Package.ID,
 		item.Package.Description,
 	}
 	for _, field := range fields {
@@ -1280,8 +1280,8 @@ func isSubsequence(query, text string) bool {
 	return false
 }
 
-func (m Model) selectedApps() []catalog.Package {
-	apps := make([]catalog.Package, 0)
+func (m Model) selectedApps() []catalog.Application {
+	apps := make([]catalog.Application, 0)
 	m.collectSelectedApps(m.categories, &apps)
 	return apps
 }
@@ -1350,16 +1350,16 @@ func profileLabel(profile profiles.Profile, path string) string {
 func (m Model) catalogPackageIDs() map[string]bool {
 	ids := make(map[string]bool)
 	for _, app := range collectModelPackages(m.categories) {
-		ids[app.PackageID] = true
+		ids[app.ID] = true
 	}
 	return ids
 }
 
-func (m Model) collectSelectedApps(categories []catalog.Category, apps *[]catalog.Package) {
+func (m Model) collectSelectedApps(categories []catalog.Category, apps *[]catalog.Application) {
 	for _, category := range categories {
 		m.collectSelectedApps(category.Categories, apps)
 		for _, app := range category.Apps {
-			if m.selected[app.PackageID] {
+			if m.selected[app.ID] {
 				*apps = append(*apps, app)
 			}
 		}
@@ -1374,7 +1374,7 @@ func (m Model) selectedArgs() []string {
 
 	ids := make([]string, 0, len(selected))
 	for _, app := range selected {
-		ids = append(ids, app.PackageID)
+		ids = append(ids, app.ID)
 	}
 	args := make([]string, 0, 2)
 	if len(ids) > 0 {
@@ -1410,7 +1410,7 @@ func (m *Model) RefreshInstalledStatus() {
 		if !detection.HasDetectionMetadata(app) {
 			continue
 		}
-		status[app.PackageID] = InstalledStatus{
+		status[app.ID] = InstalledStatus{
 			Installed: detector(app),
 			Checked:   true,
 		}
@@ -1418,19 +1418,19 @@ func (m *Model) RefreshInstalledStatus() {
 	m.installed = status
 }
 
-func (m Model) installedStatus(app catalog.Package) (InstalledStatus, bool) {
+func (m Model) installedStatus(app catalog.Application) (InstalledStatus, bool) {
 	if !detection.HasDetectionMetadata(app) {
 		return InstalledStatus{}, false
 	}
-	status, ok := m.installed[app.PackageID]
+	status, ok := m.installed[app.ID]
 	if !ok {
 		return InstalledStatus{}, true
 	}
 	return status, true
 }
 
-func collectModelPackages(categories []catalog.Category) []catalog.Package {
-	apps := make([]catalog.Package, 0)
+func collectModelPackages(categories []catalog.Category) []catalog.Application {
+	apps := make([]catalog.Application, 0)
 	for _, category := range categories {
 		apps = append(apps, collectModelPackages(category.Categories)...)
 		apps = append(apps, category.Apps...)
@@ -1438,16 +1438,16 @@ func collectModelPackages(categories []catalog.Category) []catalog.Package {
 	return apps
 }
 
-func (m Model) installIndex(app catalog.Package) int {
+func (m Model) installIndex(app catalog.Application) int {
 	for i, candidate := range m.installApps {
-		if candidate.PackageID == app.PackageID {
+		if candidate.ID == app.ID {
 			return i
 		}
 	}
 	return 0
 }
 
-func startInstallCmd(ctx context.Context, apps []catalog.Package, events chan installer.Event, skips <-chan struct{}) tea.Cmd {
+func startInstallCmd(ctx context.Context, apps []catalog.Application, events chan installer.Event, skips <-chan struct{}) tea.Cmd {
 	return func() tea.Msg {
 		go installer.InstallApps(ctx, apps, events, skips)
 		event, ok := <-events
@@ -1455,7 +1455,7 @@ func startInstallCmd(ctx context.Context, apps []catalog.Package, events chan in
 	}
 }
 
-func exportProfileCmd(writer func(string, profiles.Profile, []catalog.Package) error, path string, profile profiles.Profile, catalogPackages []catalog.Package) tea.Cmd {
+func exportProfileCmd(writer func(string, profiles.Profile, []catalog.Application) error, path string, profile profiles.Profile, catalogPackages []catalog.Application) tea.Cmd {
 	return func() tea.Msg {
 		if writer == nil {
 			writer = profiles.WriteJSON
@@ -1467,7 +1467,7 @@ func exportProfileCmd(writer func(string, profiles.Profile, []catalog.Package) e
 	}
 }
 
-func importProfileCmd(reader func(string, []catalog.Package) (profiles.Profile, error), path string, catalogPackages []catalog.Package) tea.Cmd {
+func importProfileCmd(reader func(string, []catalog.Application) (profiles.Profile, error), path string, catalogPackages []catalog.Application) tea.Cmd {
 	return func() tea.Msg {
 		if reader == nil {
 			reader = profiles.ReadJSON

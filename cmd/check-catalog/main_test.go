@@ -6,19 +6,21 @@ import (
 	"github.com/halsatif/freshctl/internal/catalog"
 )
 
-func TestValidSourceAcceptsRegisteredSources(t *testing.T) {
-	for _, source := range []catalog.PackageSource{
-		catalog.PackageSourceChocolatey,
-		catalog.PackageSourceWinget,
+func TestValidProviderTypeAcceptsKnownTypes(t *testing.T) {
+	for _, providerType := range []catalog.ProviderType{
+		catalog.ProviderChocolatey,
+		catalog.ProviderWinget,
+		catalog.ProviderDirect,
+		catalog.ProviderCommunity,
 	} {
-		if !validSource(source) {
-			t.Fatalf("expected source %q to be valid", source)
+		if !validProviderType(providerType) {
+			t.Fatalf("expected provider type %q to be valid", providerType)
 		}
 	}
 }
 
-func TestValidSourceRejectsUnknownSource(t *testing.T) {
-	if validSource(catalog.PackageSource("UnknownSource")) {
-		t.Fatal("unknown source should not be valid")
+func TestValidProviderTypeRejectsUnknownProvider(t *testing.T) {
+	if validProviderType(catalog.ProviderType("UnknownProvider")) {
+		t.Fatal("unknown provider type should not be valid")
 	}
 }

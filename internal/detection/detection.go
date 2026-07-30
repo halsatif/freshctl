@@ -7,7 +7,7 @@ import (
 	"github.com/halsatif/freshctl/internal/catalog"
 )
 
-func DetectInstalled(pkg catalog.Package) bool {
+func DetectInstalled(pkg catalog.Application) bool {
 	switch pkg.DetectMethod {
 	case catalog.DetectRegistry:
 		return DetectRegistry(pkg.DetectValue)
@@ -18,7 +18,7 @@ func DetectInstalled(pkg catalog.Package) bool {
 	}
 }
 
-func HasDetectionMetadata(pkg catalog.Package) bool {
+func HasDetectionMetadata(pkg catalog.Application) bool {
 	return pkg.DetectMethod != catalog.DetectNone && strings.TrimSpace(pkg.DetectValue) != ""
 }
 

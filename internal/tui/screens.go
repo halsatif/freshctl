@@ -199,7 +199,7 @@ func (m Model) presetPreviewLines(preset presetpkg.Preset, width, height int) []
 func (m Model) presetPackageNames(preset presetpkg.Preset) []string {
 	byID := make(map[string]string)
 	for _, app := range collectModelPackages(m.categories) {
-		byID[app.PackageID] = app.Name
+		byID[app.ID] = app.Name
 	}
 
 	names := make([]string, 0, len(preset.Packages))
@@ -275,7 +275,7 @@ func (m Model) categoryCatalogListLines(width int) []string {
 
 	for i, app := range apps {
 		box := "[ ]"
-		if m.selected[app.PackageID] {
+		if m.selected[app.ID] {
 			box = selectedStyle.Render("[x]")
 		}
 		line := m.packageListLine(box, app, packageListContentWidth(width))
@@ -295,7 +295,7 @@ func (m Model) fullCatalogListLines(width int) []string {
 	lines := make([]string, 0, len(items))
 	for i, item := range items {
 		box := "[ ]"
-		if m.selected[item.Package.PackageID] {
+		if m.selected[item.Package.ID] {
 			box = selectedStyle.Render("[x]")
 		}
 		line := m.packageListLine(box, item.Package, packageListContentWidth(width))
@@ -317,7 +317,7 @@ func packageListContentWidth(width int) int {
 	return contentWidth
 }
 
-func (m Model) packageListLine(box string, app catalog.Package, width int) string {
+func (m Model) packageListLine(box string, app catalog.Application, width int) string {
 	status := m.packageListStatusLabel(app)
 	if status == "" {
 		nameWidth := width - ansi.StringWidth(box) - 1
@@ -332,7 +332,7 @@ func (m Model) packageListLine(box string, app catalog.Package, width int) strin
 	return fmt.Sprintf("%s %s %s", box, fitLine(app.Name, nameWidth), statusText)
 }
 
-func (m Model) packageListStatusLabel(app catalog.Package) string {
+func (m Model) packageListStatusLabel(app catalog.Application) string {
 	status, ok := m.installedStatus(app)
 	if !ok || !status.Checked {
 		return ""
@@ -419,7 +419,7 @@ func (m Model) viewReview() string {
 		lines = append(lines, "", "Selected apps:", mutedStyle.Render(rangeLine))
 		for i := start; i < end; i++ {
 			app := selected[i]
-			line := fmt.Sprintf("  %3d. %-34s %s", i+1, app.Name, mutedStyle.Render(app.PackageID))
+			line := fmt.Sprintf("  %3d. %-34s %s", i+1, app.Name, mutedStyle.Render(app.ID))
 			lines = append(lines, fitLine(line, contentWidth))
 		}
 		lines = append(lines, "", mutedStyle.Render("Commands will run one by one after confirmation."))
@@ -631,7 +631,7 @@ func (m Model) installSummaryTable(width, visibleRows int) []string {
 	lines := make([]string, 0, end-start)
 	nameWidth := m.installNameWidth(width)
 	for _, app := range m.installApps[start:end] {
-		status := m.appStatus[app.PackageID]
+		status := m.appStatus[app.ID]
 		if status == "" {
 			status = "pending"
 		}
@@ -646,7 +646,7 @@ func (m Model) installSummaryTable(width, visibleRows int) []string {
 func (m Model) installPlanLine() string {
 	alreadyInstalled := 0
 	for _, app := range m.installApps {
-		if m.appStatus[app.PackageID] == "skipped" {
+		if m.appStatus[app.ID] == "skipped" {
 			alreadyInstalled++
 		}
 	}
@@ -711,7 +711,7 @@ func (m Model) installFailureLines(width int) []string {
 			hidden++
 			continue
 		}
-		lines = append(lines, fitLine(errorStyle.Render("  failed ")+result.App.Name+" ("+result.App.PackageID+") - "+result.Err.Error(), width))
+		lines = append(lines, fitLine(errorStyle.Render("  failed ")+result.App.Name+" ("+result.App.ID+") - "+result.Err.Error(), width))
 		shown++
 	}
 	if hidden > 0 {
@@ -749,7 +749,7 @@ func (m Model) catalogDetailsPanel(width, height int) string {
 		}
 		item := items[m.catalogCursor]
 		selected := "No"
-		if m.selected[item.Package.PackageID] {
+		if m.selected[item.Package.ID] {
 			selected = "Yes"
 		}
 		return fitDetailsLines(packageDetailsLines(item.Package, selected, m.installedStatusLabel(item.Package)), width, height)
@@ -769,7 +769,7 @@ func (m Model) catalogDetailsPanel(width, height int) string {
 
 	app := apps[appIndex]
 	selected := "No"
-	if m.selected[app.PackageID] {
+	if m.selected[app.ID] {
 		selected = "Yes"
 	}
 	return fitDetailsLines(packageDetailsLines(app, selected, m.installedStatusLabel(app)), width, height)
@@ -839,10 +839,10 @@ func categoryDetailsLines(category catalog.Category) []string {
 	return lines
 }
 
-func packageDetailsLines(app catalog.Package, selected string, installed string) []string {
-	source := string(app.Source)
-	if source == "" {
-		source = string(catalog.PackageSourceChocolatey)
+func packageDetailsLines(app catalog.Application, selected string, installed string) []string {
+	manager := "Unavailable"
+	if provider, ok := app.PrimaryProvider(); ok {
+		manager = string(provider.Type)
 	}
 	verified := "No"
 	if app.Verified {
@@ -853,10 +853,10 @@ func packageDetailsLines(app catalog.Package, selected string, installed string)
 		app.Name,
 		"",
 		"ID:",
-		app.PackageID,
+		app.ID,
 		"",
 		"Type: " + packageTypeLabel(app.Type),
-		"Manager: " + source,
+		"Manager: " + manager,
 		"Verified: " + verified,
 	}
 	if installed != "" {
@@ -868,7 +868,7 @@ func packageDetailsLines(app catalog.Package, selected string, installed string)
 	return lines
 }
 
-func (m Model) installedStatusLabel(app catalog.Package) string {
+func (m Model) installedStatusLabel(app catalog.Application) string {
 	status, ok := m.installedStatus(app)
 	if !ok {
 		return ""
@@ -942,11 +942,11 @@ func wrapText(text string, width int) []string {
 	return lines
 }
 
-func (m Model) elapsedForApp(app catalog.Package) string {
-	if elapsed, ok := m.appElapsed[app.PackageID]; ok {
+func (m Model) elapsedForApp(app catalog.Application) string {
+	if elapsed, ok := m.appElapsed[app.ID]; ok {
 		return formatElapsed(elapsed)
 	}
-	if m.currentApp.PackageID == app.PackageID && !m.currentStart.IsZero() && !m.installDone {
+	if m.currentApp.ID == app.ID && !m.currentStart.IsZero() && !m.installDone {
 		return formatElapsed(time.Since(m.currentStart))
 	}
 	return "--:--"
@@ -957,7 +957,7 @@ func (m Model) installDoneMessage() string {
 	skipped := 0
 	installed := 0
 	for _, app := range m.installApps {
-		switch m.appStatus[app.PackageID] {
+		switch m.appStatus[app.ID] {
 		case "installed":
 			installed++
 		case "failed":
@@ -1070,7 +1070,7 @@ func (m Model) selectedInCategory(category catalog.Category) int {
 		count += m.selectedInCategory(child)
 	}
 	for _, app := range category.Apps {
-		if m.selected[app.PackageID] {
+		if m.selected[app.ID] {
 			count++
 		}
 	}

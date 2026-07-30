@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/halsatif/freshctl/internal/catalog"
-	"github.com/halsatif/freshctl/internal/sources"
+	"github.com/halsatif/freshctl/internal/providers"
 )
 
 var bannedPackageIDs = []string{
@@ -79,10 +79,10 @@ func run() error {
 	return nil
 }
 
-func validateIDs(packages []catalog.Package) error {
+func validateIDs(packages []catalog.Application) error {
 	seen := make(map[string]string, len(packages))
 	for _, pkg := range packages {
-		id := strings.TrimSpace(pkg.PackageID)
+		id := strings.TrimSpace(pkg.ID)
 		if id == "" {
 			return fmt.Errorf("package %q has empty package ID", pkg.Name)
 		}
@@ -94,47 +94,66 @@ func validateIDs(packages []catalog.Package) error {
 	return nil
 }
 
-func validateNames(packages []catalog.Package) error {
+func validateNames(packages []catalog.Application) error {
 	seen := make(map[string]string, len(packages))
 	for _, pkg := range packages {
 		name := strings.TrimSpace(pkg.Name)
 		if name == "" {
-			return fmt.Errorf("package %q has empty name", pkg.PackageID)
+			return fmt.Errorf("package %q has empty name", pkg.ID)
 		}
 		lower := strings.ToLower(name)
 		if strings.Contains(lower, "todo") || strings.Contains(lower, "placeholder") {
-			return fmt.Errorf("package %q has placeholder-like name %q", pkg.PackageID, pkg.Name)
+			return fmt.Errorf("package %q has placeholder-like name %q", pkg.ID, pkg.Name)
 		}
-		if previous, ok := seen[lower]; ok && previous != pkg.PackageID {
-			return fmt.Errorf("duplicate package name %q used by %q and %q", pkg.Name, previous, pkg.PackageID)
+		if previous, ok := seen[lower]; ok && previous != pkg.ID {
+			return fmt.Errorf("duplicate package name %q used by %q and %q", pkg.Name, previous, pkg.ID)
 		}
-		seen[lower] = pkg.PackageID
+		seen[lower] = pkg.ID
 	}
 	return nil
 }
 
-func validateMetadata(packages []catalog.Package) error {
+func validateMetadata(packages []catalog.Application) error {
 	for _, pkg := range packages {
 		if strings.TrimSpace(pkg.Description) == "" {
-			return fmt.Errorf("%s (%s) has empty description", pkg.Name, pkg.PackageID)
+			return fmt.Errorf("%s (%s) has empty description", pkg.Name, pkg.ID)
 		}
 		if strings.TrimSpace(pkg.Category) == "" {
-			return fmt.Errorf("%s (%s) has empty category", pkg.Name, pkg.PackageID)
+			return fmt.Errorf("%s (%s) has empty category", pkg.Name, pkg.ID)
 		}
 		if !validType(pkg.Type) {
-			return fmt.Errorf("%s (%s) has invalid type %q", pkg.Name, pkg.PackageID, pkg.Type)
+			return fmt.Errorf("%s (%s) has invalid type %q", pkg.Name, pkg.ID, pkg.Type)
 		}
-		if !validSource(pkg.Source) {
-			return fmt.Errorf("%s (%s) has invalid source %q", pkg.Name, pkg.PackageID, pkg.Source)
+		if len(pkg.Providers) == 0 {
+			return fmt.Errorf("%s (%s) has no install providers", pkg.Name, pkg.ID)
+		}
+		seenProviders := make(map[catalog.ProviderType]bool, len(pkg.Providers))
+		for _, provider := range pkg.Providers {
+			if !validProviderType(provider.Type) {
+				return fmt.Errorf("%s (%s) has invalid provider type %q", pkg.Name, pkg.ID, provider.Type)
+			}
+			if seenProviders[provider.Type] {
+				return fmt.Errorf("%s (%s) has duplicate provider %q", pkg.Name, pkg.ID, provider.Type)
+			}
+			seenProviders[provider.Type] = true
+			if strings.TrimSpace(provider.PackageID) == "" {
+				return fmt.Errorf("%s (%s) has empty package ID for provider %q", pkg.Name, pkg.ID, provider.Type)
+			}
+			if !validInstallStrategy(provider.Strategy) {
+				return fmt.Errorf("%s (%s) has invalid install strategy %q", pkg.Name, pkg.ID, provider.Strategy)
+			}
+			if _, ok := providers.Get(provider.Type); !ok {
+				return fmt.Errorf("%s (%s) uses provider %q without an installer implementation", pkg.Name, pkg.ID, provider.Type)
+			}
 		}
 		if !pkg.Verified {
-			return fmt.Errorf("%s (%s) should be verified in default catalog", pkg.Name, pkg.PackageID)
+			return fmt.Errorf("%s (%s) should be verified in default catalog", pkg.Name, pkg.ID)
 		}
 	}
 	return nil
 }
 
-func validateBannedPackages(packages []catalog.Package) error {
+func validateBannedPackages(packages []catalog.Application) error {
 	byID := packagesByID(packages)
 	for _, id := range bannedPackageIDs {
 		if pkg, ok := byID[id]; ok {
@@ -144,7 +163,7 @@ func validateBannedPackages(packages []catalog.Package) error {
 	return nil
 }
 
-func validateExpectedTypes(packages []catalog.Package) error {
+func validateExpectedTypes(packages []catalog.Application) error {
 	byID := packagesByID(packages)
 	for id, expected := range expectedTypes {
 		pkg, ok := byID[id]
@@ -193,13 +212,26 @@ func validType(packageType catalog.PackageType) bool {
 	}
 }
 
-func validSource(source catalog.PackageSource) bool {
-	_, ok := sources.GetSource(string(source))
-	return ok
+func validProviderType(providerType catalog.ProviderType) bool {
+	switch providerType {
+	case catalog.ProviderChocolatey, catalog.ProviderWinget, catalog.ProviderDirect, catalog.ProviderCommunity:
+		return true
+	default:
+		return false
+	}
 }
 
-func collectPackages(categories []catalog.Category) []catalog.Package {
-	packages := make([]catalog.Package, 0)
+func validInstallStrategy(strategy catalog.InstallStrategy) bool {
+	switch strategy {
+	case catalog.InstallStrategyPackageManager, catalog.InstallStrategyDirectInstaller:
+		return true
+	default:
+		return false
+	}
+}
+
+func collectPackages(categories []catalog.Category) []catalog.Application {
+	packages := make([]catalog.Application, 0)
 	for _, category := range categories {
 		packages = append(packages, collectPackages(category.Categories)...)
 		packages = append(packages, category.Apps...)
@@ -207,10 +239,10 @@ func collectPackages(categories []catalog.Category) []catalog.Package {
 	return packages
 }
 
-func packagesByID(packages []catalog.Package) map[string]catalog.Package {
-	byID := make(map[string]catalog.Package, len(packages))
+func packagesByID(packages []catalog.Application) map[string]catalog.Application {
+	byID := make(map[string]catalog.Application, len(packages))
 	for _, pkg := range packages {
-		byID[pkg.PackageID] = pkg
+		byID[pkg.ID] = pkg
 	}
 	return byID
 }

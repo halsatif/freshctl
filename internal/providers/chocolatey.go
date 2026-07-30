@@ -1,4 +1,4 @@
-package sources
+package providers
 
 import (
 	"bufio"
@@ -24,34 +24,35 @@ const (
 	defaultBufferLines = 64 * 1024
 )
 
-type ChocolateySource struct{}
+type Chocolatey struct{}
 
 type InstallError struct {
-	App      catalog.Package
+	App      catalog.Application
+	Provider catalog.Provider
 	ExitCode int
 	Err      error
 }
 
 func (e InstallError) Error() string {
 	if e.ExitCode >= 0 {
-		return fmt.Sprintf("Chocolatey failed for %s (%s) with exit code %d", e.App.Name, e.App.PackageID, e.ExitCode)
+		return fmt.Sprintf("Chocolatey failed for %s (%s) with exit code %d", e.App.Name, e.Provider.PackageID, e.ExitCode)
 	}
-	return fmt.Sprintf("Chocolatey failed for %s (%s): %v", e.App.Name, e.App.PackageID, e.Err)
+	return fmt.Sprintf("Chocolatey failed for %s (%s): %v", e.App.Name, e.Provider.PackageID, e.Err)
 }
 
 func (e InstallError) Unwrap() error {
 	return e.Err
 }
 
-func (s *ChocolateySource) ID() string {
-	return string(catalog.PackageSourceChocolatey)
+func (c *Chocolatey) Type() catalog.ProviderType {
+	return catalog.ProviderChocolatey
 }
 
-func (s *ChocolateySource) Command(pkg catalog.Package) string {
-	return "choco " + strings.Join(installArgs(pkg), " ")
+func (c *Chocolatey) Command(_ catalog.Application, provider catalog.Provider) string {
+	return "choco " + strings.Join(installArgs(provider), " ")
 }
 
-func (s *ChocolateySource) Install(ctx context.Context, pkg catalog.Package, opts InstallOptions) error {
+func (c *Chocolatey) Install(ctx context.Context, app catalog.Application, provider catalog.Provider, opts InstallOptions) error {
 	appCtx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
 
@@ -67,7 +68,7 @@ func (s *ChocolateySource) Install(ctx context.Context, pkg catalog.Package, opt
 		}
 	}()
 
-	err := s.install(appCtx, pkg, opts)
+	err := c.install(appCtx, app, provider, opts)
 	close(done)
 
 	select {
@@ -78,24 +79,24 @@ func (s *ChocolateySource) Install(ctx context.Context, pkg catalog.Package, opt
 	}
 }
 
-func (s *ChocolateySource) install(ctx context.Context, pkg catalog.Package, opts InstallOptions) error {
+func (c *Chocolatey) install(ctx context.Context, app catalog.Application, provider catalog.Provider, opts InstallOptions) error {
 	choco := ChocolateyPath()
 	if choco == "" {
-		return InstallError{App: pkg, ExitCode: -1, Err: errors.New("chocolatey executable was not found")}
+		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: errors.New("chocolatey executable was not found")}
 	}
 
-	cmd := exec.CommandContext(ctx, choco, installArgs(pkg)...)
+	cmd := exec.CommandContext(ctx, choco, installArgs(provider)...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return InstallError{App: pkg, ExitCode: -1, Err: err}
+		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: err}
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return InstallError{App: pkg, ExitCode: -1, Err: err}
+		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: err}
 	}
 	if err := cmd.Start(); err != nil {
-		return InstallError{App: pkg, ExitCode: -1, Err: err}
+		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: err}
 	}
 
 	var wg sync.WaitGroup
@@ -113,14 +114,14 @@ func (s *ChocolateySource) install(ctx context.Context, pkg catalog.Package, opt
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		}
-		return InstallError{App: pkg, ExitCode: exitCode, Err: err}
+		return InstallError{App: app, Provider: provider, ExitCode: exitCode, Err: err}
 	}
 	return nil
 }
 
-func installArgs(pkg catalog.Package) []string {
-	args := []string{"install", pkg.PackageID, "-y", "--no-progress"}
-	if pkg.Prerelease {
+func installArgs(provider catalog.Provider) []string {
+	args := []string{"install", provider.PackageID, "-y", "--no-progress"}
+	if provider.Metadata.Prerelease {
 		args = append(args, "--pre")
 	}
 	return args

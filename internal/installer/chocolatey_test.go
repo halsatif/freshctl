@@ -6,70 +6,107 @@ import (
 	"testing"
 
 	"github.com/halsatif/freshctl/internal/catalog"
-	"github.com/halsatif/freshctl/internal/sources"
+	"github.com/halsatif/freshctl/internal/providers"
 )
 
-type fakeSource struct {
-	called bool
+const testProviderType catalog.ProviderType = "TestProvider"
+
+type fakeProvider struct {
+	called            bool
+	applicationID     string
+	providerPackageID string
 }
 
-func (s *fakeSource) ID() string {
-	return "TestSource"
+func (p *fakeProvider) Type() catalog.ProviderType {
+	return testProviderType
 }
 
-func (s *fakeSource) Install(_ context.Context, _ catalog.Package, opts sources.InstallOptions) error {
-	s.called = true
+func (p *fakeProvider) Install(_ context.Context, app catalog.Application, provider catalog.Provider, opts providers.InstallOptions) error {
+	p.called = true
+	p.applicationID = app.ID
+	p.providerPackageID = provider.PackageID
 	if opts.Log != nil {
-		opts.Log("fake source installed")
+		opts.Log("fake provider installed")
 	}
 	return nil
 }
 
-func TestInstallAppsUsesPackageSource(t *testing.T) {
-	source := &fakeSource{}
-	sources.Register(source)
+func TestInstallAppsUsesApplicationProvider(t *testing.T) {
+	providerInstaller := &fakeProvider{}
+	providers.Register(providerInstaller)
 
-	app := catalog.Package{
-		Name:      "Fake App",
-		PackageID: "fake-app",
-		Source:    catalog.PackageSource(source.ID()),
+	app := catalog.Application{
+		Name: "Fake App",
+		ID:   "fake-app",
+		Providers: []catalog.Provider{{
+			Type:      testProviderType,
+			PackageID: "provider-fake-app",
+			Strategy:  catalog.InstallStrategyPackageManager,
+		}},
 	}
 
 	events := collectInstallEvents(app)
 
-	if !source.called {
-		t.Fatal("expected install flow to call package source")
+	if !providerInstaller.called {
+		t.Fatal("expected install flow to call application provider")
 	}
-	if !hasEventLine(events, "fake source installed") {
-		t.Fatal("expected source log line to be forwarded")
+	if providerInstaller.applicationID != "fake-app" || providerInstaller.providerPackageID != "provider-fake-app" {
+		t.Fatalf("installer should receive separate application and provider IDs, got app=%q provider=%q", providerInstaller.applicationID, providerInstaller.providerPackageID)
 	}
-	if !hasSuccessfulResult(events, app.PackageID) {
-		t.Fatal("expected fake source install to succeed")
+	if !hasEventLine(events, "fake provider installed") {
+		t.Fatal("expected provider log line to be forwarded")
+	}
+	if !hasSuccessfulResult(events, app.ID) {
+		t.Fatal("expected fake provider install to succeed")
 	}
 }
 
-func TestInstallAppsHandlesUnknownSource(t *testing.T) {
-	app := catalog.Package{
-		Name:      "Unknown App",
-		PackageID: "unknown-app",
-		Source:    catalog.PackageSource("UnknownSource"),
+func TestInstallAppsHandlesUnknownProvider(t *testing.T) {
+	app := catalog.Application{
+		Name: "Unknown App",
+		ID:   "unknown-app",
+		Providers: []catalog.Provider{{
+			Type:      "UnknownProvider",
+			PackageID: "unknown-app",
+			Strategy:  catalog.InstallStrategyPackageManager,
+		}},
 	}
 
 	events := collectInstallEvents(app)
 
-	if !hasEventLine(events, "unknown package source: UnknownSource") {
-		t.Fatal("expected readable unknown source error")
+	if !hasEventLine(events, "unknown package provider: UnknownProvider") {
+		t.Fatal("expected readable unknown provider error")
 	}
-	if !hasFailedResult(events, app.PackageID, "unknown package source: UnknownSource") {
-		t.Fatal("expected unknown source to be reported as failed result")
+	if !hasFailedResult(events, app.ID, "unknown package provider: UnknownProvider") {
+		t.Fatal("expected unknown provider to be reported as failed result")
 	}
 }
 
-func TestCommandForResolvesSource(t *testing.T) {
-	app := catalog.Package{
-		Name:      "Git",
-		PackageID: "git",
-		Source:    catalog.PackageSourceChocolatey,
+func TestInstallAppsHandlesMissingProvider(t *testing.T) {
+	app := catalog.Application{
+		Name: "Providerless App",
+		ID:   "providerless-app",
+	}
+
+	events := collectInstallEvents(app)
+
+	if !hasEventLine(events, "no install provider configured for Providerless App") {
+		t.Fatal("expected readable missing provider error")
+	}
+	if !hasFailedResult(events, app.ID, "no install provider configured for Providerless App") {
+		t.Fatal("expected missing provider to be reported as failed result")
+	}
+}
+
+func TestCommandForResolvesProvider(t *testing.T) {
+	app := catalog.Application{
+		Name: "Git",
+		ID:   "git-application",
+		Providers: []catalog.Provider{{
+			Type:      catalog.ProviderChocolatey,
+			PackageID: "git",
+			Strategy:  catalog.InstallStrategyPackageManager,
+		}},
 	}
 
 	if got := CommandFor(app); got != "choco install git -y --no-progress" {
@@ -77,9 +114,9 @@ func TestCommandForResolvesSource(t *testing.T) {
 	}
 }
 
-func collectInstallEvents(app catalog.Package) []Event {
+func collectInstallEvents(app catalog.Application) []Event {
 	events := make(chan Event)
-	go InstallApps(context.Background(), []catalog.Package{app}, events, nil)
+	go InstallApps(context.Background(), []catalog.Application{app}, events, nil)
 
 	collected := make([]Event, 0)
 	for event := range events {
@@ -100,7 +137,7 @@ func hasEventLine(events []Event, want string) bool {
 func hasSuccessfulResult(events []Event, packageID string) bool {
 	for _, event := range events {
 		for _, result := range event.Results {
-			if result.App.PackageID == packageID && result.Success {
+			if result.App.ID == packageID && result.Success {
 				return true
 			}
 		}
@@ -111,7 +148,7 @@ func hasSuccessfulResult(events []Event, packageID string) bool {
 func hasFailedResult(events []Event, packageID, message string) bool {
 	for _, event := range events {
 		for _, result := range event.Results {
-			if result.App.PackageID != packageID || result.Success || result.Err == nil {
+			if result.App.ID != packageID || result.Success || result.Err == nil {
 				continue
 			}
 			if strings.Contains(result.Err.Error(), message) {

@@ -100,10 +100,10 @@ func TestPackageIDsPreservesOrder(t *testing.T) {
 }
 
 func TestFromPackagesPreservesSelectionOrder(t *testing.T) {
-	packages := []catalog.Package{
-		{Name: "VS Code", PackageID: "vscode"},
-		{Name: "Git", PackageID: "git"},
-		{Name: "Firefox", PackageID: "firefox"},
+	packages := []catalog.Application{
+		{Name: "VS Code", ID: "vscode"},
+		{Name: "Git", ID: "git"},
+		{Name: "Firefox", ID: "firefox"},
 	}
 
 	profile := FromPackages(DefaultProfileName, packages)
@@ -240,8 +240,8 @@ func TestReadJSONSurfacesValidationError(t *testing.T) {
 	}
 }
 
-func testCatalogPackages() []catalog.Package {
-	packages := make([]catalog.Package, 0)
+func testCatalogPackages() []catalog.Application {
+	packages := make([]catalog.Application, 0)
 	var walk func([]catalog.Category)
 	walk = func(categories []catalog.Category) {
 		for _, category := range categories {

@@ -84,7 +84,7 @@ func packageIDs(categories []catalog.Category) map[string]bool {
 		for _, node := range nodes {
 			walk(node.Categories)
 			for _, app := range node.Apps {
-				ids[app.PackageID] = true
+				ids[app.ID] = true
 			}
 		}
 	}

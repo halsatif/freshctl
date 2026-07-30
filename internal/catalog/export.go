@@ -56,12 +56,13 @@ func collectExportPackages(categories []Category, packages *[]ExportPackage) {
 	for _, category := range categories {
 		collectExportPackages(category.Categories, packages)
 		for _, app := range category.Apps {
+			provider, _ := app.PrimaryProvider()
 			*packages = append(*packages, ExportPackage{
 				Name:        app.Name,
-				PackageID:   app.PackageID,
+				PackageID:   app.ID,
 				Category:    app.Category,
 				Type:        string(app.Type),
-				Source:      string(app.Source),
+				Source:      string(provider.Type),
 				Verified:    app.Verified,
 				Description: app.Description,
 			})

@@ -15,7 +15,7 @@ type Profile struct {
 	Packages []string `json:"packages"`
 }
 
-func Validate(profile Profile, packages []catalog.Package) error {
+func Validate(profile Profile, packages []catalog.Application) error {
 	if profile.Version != Version {
 		return fmt.Errorf("unsupported profile version %d", profile.Version)
 	}
@@ -28,7 +28,7 @@ func Validate(profile Profile, packages []catalog.Package) error {
 
 	known := make(map[string]bool, len(packages))
 	for _, pkg := range packages {
-		known[pkg.PackageID] = true
+		known[pkg.ID] = true
 	}
 
 	seen := make(map[string]bool, len(profile.Packages))

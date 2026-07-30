@@ -378,7 +378,7 @@ func TestReviewExportsSelectedPackagesToProfile(t *testing.T) {
 		height:     32,
 		categories: catalog.Default(),
 		selected:   map[string]bool{"firefox": true, "git": true, "vscode": true},
-		exportProfile: func(path string, profile profiles.Profile, packages []catalog.Package) error {
+		exportProfile: func(path string, profile profiles.Profile, packages []catalog.Application) error {
 			gotPath = path
 			gotProfile = profile
 			return profiles.Validate(profile, packages)
@@ -414,7 +414,7 @@ func TestReviewExportWithNoSelectedPackagesIsBlocked(t *testing.T) {
 		screen:     screenReview,
 		categories: catalog.Default(),
 		selected:   map[string]bool{},
-		exportProfile: func(string, profiles.Profile, []catalog.Package) error {
+		exportProfile: func(string, profiles.Profile, []catalog.Application) error {
 			called = true
 			return nil
 		},
@@ -439,7 +439,7 @@ func TestReviewProfileExportValidationErrorIsSurfaced(t *testing.T) {
 		screen:     screenReview,
 		categories: catalog.Default(),
 		selected:   map[string]bool{"firefox": true},
-		exportProfile: func(string, profiles.Profile, []catalog.Package) error {
+		exportProfile: func(string, profiles.Profile, []catalog.Application) error {
 			return errors.New("validation failed")
 		},
 	}
@@ -468,7 +468,7 @@ func TestCatalogOKeyImportsProfile(t *testing.T) {
 		searchFocused: false,
 		searchQuery:   "fire",
 		selected:      map[string]bool{},
-		importProfile: func(path string, packages []catalog.Package) (profiles.Profile, error) {
+		importProfile: func(path string, packages []catalog.Application) (profiles.Profile, error) {
 			gotPath = path
 			return profiles.Profile{
 				Version:  profiles.Version,
@@ -509,7 +509,7 @@ func TestProfileImportPreservesExistingSelections(t *testing.T) {
 		screen:     screenCatalog,
 		categories: catalog.Default(),
 		selected:   map[string]bool{"vlc": true},
-		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+		importProfile: func(string, []catalog.Application) (profiles.Profile, error) {
 			return profiles.Profile{
 				Version:  profiles.Version,
 				Name:     "freshctl profile",
@@ -533,7 +533,7 @@ func TestProfileImportUsesDefaultLabelForEmptyName(t *testing.T) {
 		screen:     screenCatalog,
 		categories: catalog.Default(),
 		selected:   map[string]bool{},
-		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+		importProfile: func(string, []catalog.Application) (profiles.Profile, error) {
 			return profiles.Profile{
 				Version:  profiles.Version,
 				Packages: []string{"firefox"},
@@ -552,7 +552,7 @@ func TestProfileImportUsesDefaultLabelForEmptyName(t *testing.T) {
 }
 
 func TestProfileLabelAppearsInCatalogReviewAndInstall(t *testing.T) {
-	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	app := catalog.Application{Name: "Firefox", ID: "firefox"}
 	model := Model{
 		screen:         screenCatalog,
 		width:          100,
@@ -567,7 +567,7 @@ func TestProfileLabelAppearsInCatalogReviewAndInstall(t *testing.T) {
 	model.screen = screenReview
 	reviewView := stripANSI(model.View())
 	model.screen = screenInstall
-	model.installApps = []catalog.Package{app}
+	model.installApps = []catalog.Application{app}
 	model.appStatus = map[string]string{"firefox": "pending"}
 	model.appElapsed = map[string]time.Duration{}
 	installView := stripANSI(model.View())
@@ -599,7 +599,7 @@ func TestProfileImportErrorsAreSurfaced(t *testing.T) {
 				screen:     screenCatalog,
 				categories: catalog.Default(),
 				selected:   map[string]bool{},
-				importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+				importProfile: func(string, []catalog.Application) (profiles.Profile, error) {
 					return profiles.Profile{}, tc.err
 				},
 			}
@@ -626,7 +626,7 @@ func TestPresetAndProfileContextSwitching(t *testing.T) {
 			Name:     "Minimal",
 			Packages: []string{"firefox"},
 		}},
-		importProfile: func(string, []catalog.Package) (profiles.Profile, error) {
+		importProfile: func(string, []catalog.Application) (profiles.Profile, error) {
 			return profiles.Profile{
 				Version:  profiles.Version,
 				Name:     "freshctl profile",
@@ -664,12 +664,12 @@ func TestPresetAndProfileContextSwitching(t *testing.T) {
 }
 
 func TestInstallPlanShowsAppliedPreset(t *testing.T) {
-	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	app := catalog.Application{Name: "Firefox", ID: "firefox"}
 	model := Model{
 		screen:        screenInstall,
 		width:         100,
 		height:        24,
-		installApps:   []catalog.Package{app},
+		installApps:   []catalog.Application{app},
 		appStatus:     map[string]string{"firefox": "pending"},
 		appElapsed:    map[string]time.Duration{},
 		appliedPreset: "Minimal",
@@ -682,12 +682,12 @@ func TestInstallPlanShowsAppliedPreset(t *testing.T) {
 }
 
 func TestInstallPlanHidesPresetLineWhenNoneApplied(t *testing.T) {
-	app := catalog.Package{Name: "Firefox", PackageID: "firefox"}
+	app := catalog.Application{Name: "Firefox", ID: "firefox"}
 	model := Model{
 		screen:      screenInstall,
 		width:       100,
 		height:      24,
-		installApps: []catalog.Package{app},
+		installApps: []catalog.Application{app},
 		appStatus:   map[string]string{"firefox": "pending"},
 		appElapsed:  map[string]time.Duration{},
 	}
@@ -739,7 +739,7 @@ func TestManualSelectionAfterPresetKeepsPresetLabel(t *testing.T) {
 	}
 	items := model.filteredFullCatalogItems()
 	for i, item := range items {
-		if item.Package.PackageID == "vlc" {
+		if item.Package.ID == "vlc" {
 			model.catalogCursor = i
 			break
 		}
@@ -938,12 +938,12 @@ func TestRussianKeyboardAliasesWorkForCatalogActions(t *testing.T) {
 }
 
 func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:        "Visual Studio Code",
 		Description: "Code editor with extensions and integrated tools.",
-		PackageID:   "vscode",
+		ID:          "vscode",
 		Type:        catalog.PackageTypeApplication,
-		Source:      catalog.PackageSourceChocolatey,
+		Providers:   testChocolateyProviders("vscode"),
 		Verified:    true,
 	}
 
@@ -990,12 +990,12 @@ func TestPackageDetailsPanelShowsCLIToolMetadata(t *testing.T) {
 }
 
 func TestPackageDetailsPanelShowsInstalledStatusWhenDetectionExists(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Missing CLI",
 		Description:  "Test command-line tool.",
-		PackageID:    "missing-cli",
+		ID:           "missing-cli",
 		Type:         catalog.PackageTypeCLITool,
-		Source:       catalog.PackageSourceChocolatey,
+		Providers:    testChocolateyProviders("missing-cli"),
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "freshctl-definitely-not-installed.exe",
 		Verified:     true,
@@ -1008,12 +1008,12 @@ func TestPackageDetailsPanelShowsInstalledStatusWhenDetectionExists(t *testing.T
 }
 
 func TestPackageDetailsPanelHidesInstalledStatusWithoutDetection(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:        "No Detection",
 		Description: "Package without detection metadata.",
-		PackageID:   "no-detection",
+		ID:          "no-detection",
 		Type:        catalog.PackageTypeApplication,
-		Source:      catalog.PackageSourceChocolatey,
+		Providers:   testChocolateyProviders("no-detection"),
 		Verified:    true,
 	}
 
@@ -1024,16 +1024,16 @@ func TestPackageDetailsPanelHidesInstalledStatusWithoutDetection(t *testing.T) {
 }
 
 func TestInstalledStatusCachePopulatesDetectedPackages(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Cached Tool",
-		PackageID:    "cached-tool",
+		ID:           "cached-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "cached-tool.exe",
 	}
 	model := Model{
-		categories: []catalog.Category{{Apps: []catalog.Package{app}}},
-		detectInstalled: func(pkg catalog.Package) bool {
-			return pkg.PackageID == "cached-tool"
+		categories: []catalog.Category{{Apps: []catalog.Application{app}}},
+		detectInstalled: func(pkg catalog.Application) bool {
+			return pkg.ID == "cached-tool"
 		},
 	}
 
@@ -1046,11 +1046,11 @@ func TestInstalledStatusCachePopulatesDetectedPackages(t *testing.T) {
 
 func TestInstalledStatusCacheSkipsPackagesWithoutDetectionMetadata(t *testing.T) {
 	model := Model{
-		categories: []catalog.Category{{Apps: []catalog.Package{{
-			Name:      "No Detection",
-			PackageID: "no-detection",
+		categories: []catalog.Category{{Apps: []catalog.Application{{
+			Name: "No Detection",
+			ID:   "no-detection",
 		}}}},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			t.Fatal("detector should not be called for package without detection metadata")
 			return true
 		},
@@ -1063,16 +1063,16 @@ func TestInstalledStatusCacheSkipsPackagesWithoutDetectionMetadata(t *testing.T)
 }
 
 func TestInstalledStatusRefreshUpdatesCache(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Refresh Tool",
-		PackageID:    "refresh-tool",
+		ID:           "refresh-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "refresh-tool.exe",
 	}
 	installed := false
 	model := Model{
-		categories: []catalog.Category{{Apps: []catalog.Package{app}}},
-		detectInstalled: func(catalog.Package) bool {
+		categories: []catalog.Category{{Apps: []catalog.Application{app}}},
+		detectInstalled: func(catalog.Application) bool {
 			return installed
 		},
 	}
@@ -1098,12 +1098,12 @@ func TestNewModelScansInstalledStatusAtStartup(t *testing.T) {
 }
 
 func TestDetailsPanelUsesCachedInstalledStatus(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Cached Missing Tool",
 		Description:  "Tool that should read installed state from cache.",
-		PackageID:    "cached-missing-tool",
+		ID:           "cached-missing-tool",
 		Type:         catalog.PackageTypeCLITool,
-		Source:       catalog.PackageSourceChocolatey,
+		Providers:    testChocolateyProviders("cached-missing-tool"),
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "freshctl-definitely-not-installed.exe",
 		Verified:     true,
@@ -1112,7 +1112,7 @@ func TestDetailsPanelUsesCachedInstalledStatus(t *testing.T) {
 		screen:      screenCatalog,
 		width:       100,
 		height:      32,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
@@ -1127,14 +1127,14 @@ func TestDetailsPanelUsesCachedInstalledStatus(t *testing.T) {
 }
 
 func TestCatalogListShowsInstalledStatusFromCache(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Cached Installed",
-		PackageID:    "cached-installed",
+		ID:           "cached-installed",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "cached-installed.exe",
 	}
 	model := Model{
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
@@ -1149,14 +1149,14 @@ func TestCatalogListShowsInstalledStatusFromCache(t *testing.T) {
 }
 
 func TestCatalogListShowsNotInstalledStatusFromCache(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Cached Missing",
-		PackageID:    "cached-missing",
+		ID:           "cached-missing",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "cached-missing.exe",
 	}
 	model := Model{
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
@@ -1171,12 +1171,12 @@ func TestCatalogListShowsNotInstalledStatusFromCache(t *testing.T) {
 }
 
 func TestCatalogListHidesStatusWithoutDetectionMetadata(t *testing.T) {
-	app := catalog.Package{
-		Name:      "No Detection",
-		PackageID: "no-detection",
+	app := catalog.Application{
+		Name: "No Detection",
+		ID:   "no-detection",
 	}
 	model := Model{
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
@@ -1191,15 +1191,15 @@ func TestCatalogListHidesStatusWithoutDetectionMetadata(t *testing.T) {
 }
 
 func TestCatalogSearchResultsShowInstalledStatus(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Search Installed Tool",
 		Description:  "Searchable tool.",
-		PackageID:    "search-installed-tool",
+		ID:           "search-installed-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "search-installed-tool.exe",
 	}
 	model := Model{
-		categories:    []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:    []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode:   catalogModeFull,
 		searchFocused: true,
 		searchQuery:   "search",
@@ -1216,10 +1216,10 @@ func TestCatalogSearchResultsShowInstalledStatus(t *testing.T) {
 }
 
 func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Render Cached Tool",
 		Description:  "Cached render test.",
-		PackageID:    "render-cached-tool",
+		ID:           "render-cached-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "render-cached-tool.exe",
 	}
@@ -1227,13 +1227,13 @@ func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
 		screen:      screenCatalog,
 		width:       100,
 		height:      32,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
 			"render-cached-tool": {Installed: true, Checked: true},
 		},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			t.Fatal("render should not call installed detection")
 			return false
 		},
@@ -1246,24 +1246,24 @@ func TestCatalogListRenderDoesNotCallDetection(t *testing.T) {
 }
 
 func TestInstallSummaryRefreshesInstalledStatusCacheOnce(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Refresh Once Tool",
 		Description:  "Refresh once test.",
-		PackageID:    "refresh-once-tool",
+		ID:           "refresh-once-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "refresh-once-tool.exe",
 	}
 	calls := 0
 	model := Model{
 		screen:      screenInstall,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
-		installApps: []catalog.Package{app},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
+		installApps: []catalog.Application{app},
 		appStatus:   map[string]string{"refresh-once-tool": "installed"},
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
 			"refresh-once-tool": {Installed: false, Checked: true},
 		},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			calls++
 			return true
 		},
@@ -1297,23 +1297,23 @@ func TestInstallSummaryRefreshesInstalledStatusCacheOnce(t *testing.T) {
 }
 
 func TestSuccessfulInstallUpdatesStatusWhenDetectable(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Detectable Success",
 		Description:  "Detectable success test.",
-		PackageID:    "detectable-success",
+		ID:           "detectable-success",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "detectable-success.exe",
 	}
 	model := Model{
 		screen:      screenInstall,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
-		installApps: []catalog.Package{app},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
+		installApps: []catalog.Application{app},
 		appStatus:   map[string]string{"detectable-success": "installed"},
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
 			"detectable-success": {Installed: false, Checked: true},
 		},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			return true
 		},
 	}
@@ -1332,23 +1332,23 @@ func TestSuccessfulInstallUpdatesStatusWhenDetectable(t *testing.T) {
 }
 
 func TestFailedInstallDoesNotFakeInstalledStatus(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Detectable Failure",
 		Description:  "Detectable failure test.",
-		PackageID:    "detectable-failure",
+		ID:           "detectable-failure",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "detectable-failure.exe",
 	}
 	model := Model{
 		screen:      screenInstall,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
-		installApps: []catalog.Package{app},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
+		installApps: []catalog.Application{app},
 		appStatus:   map[string]string{"detectable-failure": "failed"},
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
 			"detectable-failure": {Installed: false, Checked: true},
 		},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			return false
 		},
 	}
@@ -1367,29 +1367,29 @@ func TestFailedInstallDoesNotFakeInstalledStatus(t *testing.T) {
 }
 
 func TestCatalogReflectsRefreshedInstalledStatusAfterInstall(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Reflected Tool",
 		Description:  "Reflected status test.",
-		PackageID:    "reflected-tool",
+		ID:           "reflected-tool",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "reflected-tool.exe",
 		Type:         catalog.PackageTypeCLITool,
-		Source:       catalog.PackageSourceChocolatey,
+		Providers:    testChocolateyProviders("reflected-tool"),
 		Verified:     true,
 	}
 	model := Model{
 		screen:      screenInstall,
 		width:       100,
 		height:      32,
-		categories:  []catalog.Category{{Apps: []catalog.Package{app}}},
+		categories:  []catalog.Category{{Apps: []catalog.Application{app}}},
 		catalogMode: catalogModeFull,
-		installApps: []catalog.Package{app},
+		installApps: []catalog.Application{app},
 		appStatus:   map[string]string{"reflected-tool": "installed"},
 		selected:    map[string]bool{},
 		installed: map[string]InstalledStatus{
 			"reflected-tool": {Installed: false, Checked: true},
 		},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			return true
 		},
 	}
@@ -1411,9 +1411,9 @@ func TestCatalogReflectsRefreshedInstalledStatusAfterInstall(t *testing.T) {
 }
 
 func TestStartInstallSkipsInstalledPackages(t *testing.T) {
-	installedApp := catalog.Package{
+	installedApp := catalog.Application{
 		Name:         "Installed App",
-		PackageID:    "installed-app",
+		ID:           "installed-app",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "installed-app.exe",
 	}
@@ -1424,7 +1424,7 @@ func TestStartInstallSkipsInstalledPackages(t *testing.T) {
 		},
 	}
 
-	updated, _ := m.startInstall([]catalog.Package{installedApp})
+	updated, _ := m.startInstall([]catalog.Application{installedApp})
 	got := updated.(Model)
 
 	if got.appStatus["installed-app"] != "skipped" {
@@ -1439,9 +1439,9 @@ func TestStartInstallSkipsInstalledPackages(t *testing.T) {
 }
 
 func TestStartInstallLeavesNotInstalledPackagesPending(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:         "Missing App",
-		PackageID:    "missing-app",
+		ID:           "missing-app",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "missing-app.exe",
 	}
@@ -1452,7 +1452,7 @@ func TestStartInstallLeavesNotInstalledPackagesPending(t *testing.T) {
 		},
 	}
 
-	updated, _ := m.startInstall([]catalog.Package{app})
+	updated, _ := m.startInstall([]catalog.Application{app})
 	got := updated.(Model)
 
 	if got.appStatus["missing-app"] != "pending" {
@@ -1467,7 +1467,7 @@ func TestStartInstallLeavesNotInstalledPackagesPending(t *testing.T) {
 }
 
 func TestStartInstallInstallsPackagesWithoutDetectionMetadata(t *testing.T) {
-	app := catalog.Package{Name: "Unknown Detection App", PackageID: "unknown-detection-app"}
+	app := catalog.Application{Name: "Unknown Detection App", ID: "unknown-detection-app"}
 	m := Model{
 		selected: map[string]bool{},
 		installed: map[string]InstalledStatus{
@@ -1475,7 +1475,7 @@ func TestStartInstallInstallsPackagesWithoutDetectionMetadata(t *testing.T) {
 		},
 	}
 
-	updated, _ := m.startInstall([]catalog.Package{app})
+	updated, _ := m.startInstall([]catalog.Application{app})
 	got := updated.(Model)
 
 	if got.appStatus["unknown-detection-app"] != "pending" {
@@ -1487,9 +1487,9 @@ func TestStartInstallInstallsPackagesWithoutDetectionMetadata(t *testing.T) {
 }
 
 func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
-	skippedApp := catalog.Package{
+	skippedApp := catalog.Application{
 		Name:         "Already There",
-		PackageID:    "already-there",
+		ID:           "already-there",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "already-there.exe",
 	}
@@ -1502,7 +1502,7 @@ func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
 		},
 	}
 
-	updated, _ := m.startInstall([]catalog.Package{skippedApp})
+	updated, _ := m.startInstall([]catalog.Application{skippedApp})
 	got := updated.(Model)
 	view := stripANSI(got.View())
 
@@ -1521,12 +1521,12 @@ func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
 }
 
 func TestInstallSummaryMergesPreSkippedResults(t *testing.T) {
-	skippedApp := catalog.Package{Name: "Skipped App", PackageID: "skipped-app"}
-	installedApp := catalog.Package{Name: "Installed App", PackageID: "installed-app"}
+	skippedApp := catalog.Application{Name: "Skipped App", ID: "skipped-app"}
+	installedApp := catalog.Application{Name: "Installed App", ID: "installed-app"}
 	model := Model{
 		screen:      screenInstall,
-		categories:  []catalog.Category{{Apps: []catalog.Package{skippedApp, installedApp}}},
-		installApps: []catalog.Package{skippedApp, installedApp},
+		categories:  []catalog.Category{{Apps: []catalog.Application{skippedApp, installedApp}}},
+		installApps: []catalog.Application{skippedApp, installedApp},
 		appStatus: map[string]string{
 			"skipped-app":   "skipped",
 			"installed-app": "installed",
@@ -1537,7 +1537,7 @@ func TestInstallSummaryMergesPreSkippedResults(t *testing.T) {
 			Skipped: true,
 			Err:     installer.ErrInstallSkipped,
 		}},
-		detectInstalled: func(catalog.Package) bool {
+		detectInstalled: func(catalog.Application) bool {
 			return false
 		},
 	}
@@ -1560,12 +1560,12 @@ func TestInstallSummaryMergesPreSkippedResults(t *testing.T) {
 }
 
 func TestPackageDetailsPanelFitsNarrowWidth(t *testing.T) {
-	app := catalog.Package{
+	app := catalog.Application{
 		Name:        "Long App",
 		Description: strings.Repeat("long metadata ", 12),
-		PackageID:   "very-long-package-id-that-should-be-truncated",
+		ID:          "very-long-package-id-that-should-be-truncated",
 		Type:        catalog.PackageTypeApplication,
-		Source:      catalog.PackageSourceChocolatey,
+		Providers:   testChocolateyProviders("very-long-package-id-that-should-be-truncated"),
 		Verified:    true,
 	}
 
@@ -1618,7 +1618,7 @@ func TestEscFromCategoryRootReturnsToModeSelect(t *testing.T) {
 func TestReviewScreenSummarizesLargeSelection(t *testing.T) {
 	selected := map[string]bool{}
 	for _, item := range collectTestPackages(catalog.Default()) {
-		selected[item.PackageID] = true
+		selected[item.ID] = true
 	}
 	model := Model{
 		screen:     screenReview,
@@ -1644,7 +1644,7 @@ func TestReviewScreenScrollsSelection(t *testing.T) {
 	selected := map[string]bool{}
 	packages := collectTestPackages(catalog.Default())
 	for _, app := range packages {
-		selected[app.PackageID] = true
+		selected[app.ID] = true
 	}
 	model := Model{
 		screen:       screenReview,
@@ -1740,7 +1740,7 @@ func TestInstallSummaryScrollsLongPackageList(t *testing.T) {
 		appElapsed:  map[string]time.Duration{},
 	}
 	for _, app := range apps {
-		model.appStatus[app.PackageID] = "pending"
+		model.appStatus[app.ID] = "pending"
 	}
 
 	firstView := stripANSI(model.View())
@@ -1770,9 +1770,9 @@ func TestInstallSummaryDoesNotDuplicateVisibleRows(t *testing.T) {
 		appElapsed:  map[string]time.Duration{},
 	}
 	for _, app := range apps {
-		model.appStatus[app.PackageID] = "pending"
+		model.appStatus[app.ID] = "pending"
 	}
-	model.appStatus[apps[0].PackageID] = "installing"
+	model.appStatus[apps[0].ID] = "installing"
 
 	updated, _ := model.handleInstallTick()
 	ticked := updated.(Model)
@@ -1794,12 +1794,12 @@ func TestInstallSummaryDoesNotDuplicateVisibleRows(t *testing.T) {
 }
 
 func TestInstallElapsedFreezesAfterCompletion(t *testing.T) {
-	app := catalog.Package{Name: "Example App", PackageID: "example"}
+	app := catalog.Application{Name: "Example App", ID: "example"}
 	model := Model{
 		screen:       screenInstall,
 		width:        100,
 		height:       24,
-		installApps:  []catalog.Package{app},
+		installApps:  []catalog.Application{app},
 		appStatus:    map[string]string{"example": "installed"},
 		appElapsed:   map[string]time.Duration{"example": 3 * time.Second},
 		currentApp:   app,
@@ -1878,7 +1878,7 @@ func TestCatalogSearchMatchesPackageID(t *testing.T) {
 	}
 
 	items := model.filteredFullCatalogItems()
-	if len(items) != 1 || items[0].Package.PackageID != "codex-cli" {
+	if len(items) != 1 || items[0].Package.ID != "codex-cli" {
 		t.Fatalf("search should match package id, got %#v", itemNames(items))
 	}
 }
@@ -2114,7 +2114,7 @@ func TestFullCatalogTruncatesLongNamesInsidePane(t *testing.T) {
 	}
 
 	for i, item := range model.filteredFullCatalogItems() {
-		if item.Package.PackageID == "vcredist140" {
+		if item.Package.ID == "vcredist140" {
 			model.catalogCursor = i
 			break
 		}
@@ -2201,7 +2201,7 @@ func TestCatalogSearchIgnoresAltAndControlRunes(t *testing.T) {
 
 func containsPackage(items []fullCatalogItem, packageID string) bool {
 	for _, item := range items {
-		if item.Package.PackageID == packageID {
+		if item.Package.ID == packageID {
 			return true
 		}
 	}
@@ -2236,8 +2236,8 @@ func stripANSI(value string) string {
 	return re.ReplaceAllString(value, "")
 }
 
-func collectTestPackages(categories []catalog.Category) []catalog.Package {
-	var apps []catalog.Package
+func collectTestPackages(categories []catalog.Category) []catalog.Application {
+	var apps []catalog.Application
 	for _, category := range categories {
 		apps = append(apps, collectTestPackages(category.Categories)...)
 		apps = append(apps, category.Apps...)
@@ -2245,23 +2245,31 @@ func collectTestPackages(categories []catalog.Category) []catalog.Package {
 	return apps
 }
 
-func packagesByIDForTUITest(categories []catalog.Category) map[string]catalog.Package {
-	apps := make(map[string]catalog.Package)
+func packagesByIDForTUITest(categories []catalog.Category) map[string]catalog.Application {
+	apps := make(map[string]catalog.Application)
 	for _, app := range collectTestPackages(categories) {
-		apps[app.PackageID] = app
+		apps[app.ID] = app
 	}
 	return apps
 }
 
-func fakeInstallPackages(count int) []catalog.Package {
-	apps := make([]catalog.Package, 0, count)
+func fakeInstallPackages(count int) []catalog.Application {
+	apps := make([]catalog.Application, 0, count)
 	for i := 1; i <= count; i++ {
-		apps = append(apps, catalog.Package{
-			Name:      "Package " + twoDigit(i),
-			PackageID: "pkg-" + twoDigit(i),
+		apps = append(apps, catalog.Application{
+			Name: "Package " + twoDigit(i),
+			ID:   "pkg-" + twoDigit(i),
 		})
 	}
 	return apps
+}
+
+func testChocolateyProviders(packageID string) []catalog.Provider {
+	return []catalog.Provider{{
+		Type:      catalog.ProviderChocolatey,
+		PackageID: packageID,
+		Strategy:  catalog.InstallStrategyPackageManager,
+	}}
 }
 
 func twoDigit(value int) string {

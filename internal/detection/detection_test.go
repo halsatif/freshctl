@@ -41,16 +41,16 @@ func TestDetectPath(t *testing.T) {
 }
 
 func TestDetectInstalledWithoutMetadata(t *testing.T) {
-	if DetectInstalled(catalog.Package{Name: "No Metadata"}) {
+	if DetectInstalled(catalog.Application{Name: "No Metadata"}) {
 		t.Fatal("package without detection metadata should not be detected")
 	}
-	if HasDetectionMetadata(catalog.Package{Name: "No Metadata"}) {
+	if HasDetectionMetadata(catalog.Application{Name: "No Metadata"}) {
 		t.Fatal("package without detection metadata should report no metadata")
 	}
 }
 
 func TestHasDetectionMetadata(t *testing.T) {
-	pkg := catalog.Package{
+	pkg := catalog.Application{
 		Name:         "ripgrep",
 		DetectMethod: catalog.DetectPath,
 		DetectValue:  "rg.exe",

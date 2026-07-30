@@ -8,13 +8,6 @@ const (
 	PackageTypeRuntime     PackageType = "Runtime"
 )
 
-type PackageSource string
-
-const (
-	PackageSourceChocolatey PackageSource = "Chocolatey"
-	PackageSourceWinget     PackageSource = "Winget"
-)
-
 type DetectMethod string
 
 const (
@@ -23,19 +16,19 @@ const (
 	DetectPath     DetectMethod = "Path"
 )
 
-type Package struct {
+type Application struct {
+	ID           string
 	Name         string
 	Description  string
 	Category     string
 	Type         PackageType
-	Source       PackageSource
-	PackageID    string
+	Icon         string
 	DetectMethod DetectMethod
 	DetectValue  string
 	Verified     bool
 	CategoryType string
 	Selected     bool
-	Prerelease   bool
+	Providers    []Provider
 }
 
 type Category struct {
@@ -43,42 +36,44 @@ type Category struct {
 	Description  string
 	CategoryType string
 	Categories   []Category
-	Apps         []Package
+	Apps         []Application
 }
 
-func app(name, id, category, description string) Package {
+func app(name, id, category, description string) Application {
 	return packageWithType(name, id, category, description, PackageTypeApplication)
 }
 
-func cli(name, id, category, description string) Package {
+func cli(name, id, category, description string) Application {
 	return packageWithType(name, id, category, description, PackageTypeCLITool)
 }
 
-func runtimePackage(name, id, category, description string) Package {
+func runtimePackage(name, id, category, description string) Application {
 	return packageWithType(name, id, category, description, PackageTypeRuntime)
 }
 
-func prerelease(pkg Package) Package {
-	pkg.Prerelease = true
-	return pkg
+func prerelease(app Application) Application {
+	if len(app.Providers) > 0 {
+		app.Providers[0].Metadata.Prerelease = true
+	}
+	return app
 }
 
-func detect(pkg Package, method DetectMethod, value string) Package {
-	pkg.DetectMethod = method
-	pkg.DetectValue = value
-	return pkg
+func detect(app Application, method DetectMethod, value string) Application {
+	app.DetectMethod = method
+	app.DetectValue = value
+	return app
 }
 
-func packageWithType(name, id, category, description string, packageType PackageType) Package {
-	return Package{
+func packageWithType(name, id, category, description string, packageType PackageType) Application {
+	return Application{
+		ID:           id,
 		Name:         name,
-		PackageID:    id,
 		Category:     category,
 		CategoryType: category,
 		Description:  description,
 		Type:         packageType,
-		Source:       PackageSourceChocolatey,
 		Verified:     true,
+		Providers:    []Provider{chocolateyProvider(id)},
 	}
 }
 
@@ -88,7 +83,7 @@ func Default() []Category {
 			Name:         "Browsers",
 			CategoryType: "category",
 			Description:  "Web browsers for everyday browsing, privacy-focused workflows, and alternate browser engines.",
-			Apps: []Package{
+			Apps: []Application{
 				detect(app("Google Chrome", "googlechrome", "browser", "Google's web browser."), DetectRegistry, "Google Chrome"),
 				app("Opera", "opera", "browser", "Opera web browser."),
 				app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."),
@@ -106,7 +101,7 @@ func Default() []Category {
 			Name:         "Communication",
 			CategoryType: "category",
 			Description:  "Messaging, voice chat, video meetings, and team communication apps.",
-			Apps: []Package{
+			Apps: []Application{
 				detect(app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."), DetectRegistry, "Telegram Desktop"),
 				detect(app("Signal", "signal", "communication", "Private messaging desktop app."), DetectRegistry, "Signal"),
 				app("Element", "element-desktop", "communication", "Matrix-based secure chat client."),
@@ -124,7 +119,7 @@ func Default() []Category {
 					Name:         "Editors",
 					CategoryType: "subcategory",
 					Description:  "Code editors and development workspaces.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."), DetectRegistry, "Visual Studio Code"),
 						app("Zed", "zed-editor", "editor", "Fast collaborative code editor."),
 						app("Sublime Text", "sublimetext4", "editor", "Fast text and code editor."),
@@ -140,7 +135,7 @@ func Default() []Category {
 					Name:         "Version Control",
 					CategoryType: "subcategory",
 					Description:  "Tools for tracking source code changes.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(cli("Git", "git", "version-control", "Command-line version control tool. Run with git."), DetectPath, "git.exe"),
 					},
 				},
@@ -153,7 +148,7 @@ func Default() []Category {
 							Name:         ".NET",
 							CategoryType: "runtime",
 							Description:  ".NET runtimes and SDKs for building and running applications.",
-							Apps: []Package{
+							Apps: []Application{
 								runtimePackage(".NET Runtime 10", "dotnet-10.0-runtime", "runtime", ".NET 10 runtime required by some Windows apps."),
 								runtimePackage(".NET Runtime 9", "dotnet-9.0-runtime", "runtime", ".NET 9 runtime required by some Windows apps."),
 								runtimePackage(".NET Runtime 8", "dotnet-8.0-runtime", "runtime", ".NET 8 runtime required by many Windows apps."),
@@ -172,7 +167,7 @@ func Default() []Category {
 							Name:         "Java",
 							CategoryType: "runtime",
 							Description:  "Adoptium Java runtimes and development kits.",
-							Apps: []Package{
+							Apps: []Application{
 								runtimePackage("JDK 25 (Adoptium)", "temurin25", "runtime", "Adoptium Java Development Kit 25."),
 								runtimePackage("JDK 21 (Adoptium)", "temurin21", "runtime", "Adoptium Java Development Kit 21."),
 								runtimePackage("JDK 17 (Adoptium)", "temurin17", "runtime", "Adoptium Java Development Kit 17."),
@@ -189,7 +184,7 @@ func Default() []Category {
 							Name:         "Node.js",
 							CategoryType: "runtime",
 							Description:  "Node.js runtime and package tooling.",
-							Apps: []Package{
+							Apps: []Application{
 								detect(runtimePackage("Node.js LTS", "nodejs-lts", "runtime", "Node.js LTS runtime and npm."), DetectPath, "node.exe"),
 							},
 						},
@@ -197,7 +192,7 @@ func Default() []Category {
 							Name:         "Python",
 							CategoryType: "runtime",
 							Description:  "Python runtime and package tools.",
-							Apps: []Package{
+							Apps: []Application{
 								detect(runtimePackage("Python 3", "python", "runtime", "Python runtime and package tools."), DetectPath, "python.exe"),
 							},
 						},
@@ -205,7 +200,7 @@ func Default() []Category {
 							Name:         "Toolchains",
 							CategoryType: "runtime",
 							Description:  "Compiler toolchains and build systems.",
-							Apps: []Package{
+							Apps: []Application{
 								detect(cli("Go", "golang", "toolchain", "Go command-line toolchain. Run with go."), DetectPath, "go.exe"),
 								detect(cli("Rustup", "rustup.install", "toolchain", "Rust command-line toolchain installer. Run with rustup."), DetectPath, "rustup.exe"),
 								detect(cli("LLVM", "llvm", "toolchain", "Compiler toolchain for C, C++, and LLVM-based tools."), DetectPath, "clang.exe"),
@@ -217,7 +212,7 @@ func Default() []Category {
 							Name:         "Visual C++ Redistributables",
 							CategoryType: "runtime",
 							Description:  "Microsoft Visual C++ runtime packages for legacy and current Windows applications.",
-							Apps: []Package{
+							Apps: []Application{
 								runtimePackage("VC++ Redist 2010 x86/x64", "vcredist2010", "runtime", "Microsoft runtime required by older Windows apps and games."),
 								runtimePackage("VC++ Redist 2012 x86/x64", "vcredist2012", "runtime", "Microsoft runtime required by older Windows apps and games."),
 								runtimePackage("VC++ Redist 2013 x86/x64", "vcredist2013", "runtime", "Microsoft runtime required by older Windows apps and games."),
@@ -230,7 +225,7 @@ func Default() []Category {
 					Name:         "Terminals & CLI",
 					CategoryType: "subcategory",
 					Description:  "Terminal emulators, shells, and command-line utilities.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(app("Windows Terminal", "microsoft-windows-terminal", "terminal", "Microsoft terminal app for shells and command-line tools."), DetectRegistry, "Windows Terminal"),
 						detect(cli("PowerShell 7", "powershell-core", "terminal", "Command-line shell and scripting environment. Run with pwsh."), DetectPath, "pwsh.exe"),
 						detect(app("WezTerm", "wezterm", "terminal", "GPU-accelerated terminal emulator."), DetectRegistry, "WezTerm"),
@@ -244,7 +239,7 @@ func Default() []Category {
 					Name:         "Containers",
 					CategoryType: "subcategory",
 					Description:  "Container runtimes and desktop container managers.",
-					Apps: []Package{
+					Apps: []Application{
 						app("Podman Desktop", "podman-desktop", "container", "Desktop manager for Podman and containers."),
 					},
 				},
@@ -252,7 +247,7 @@ func Default() []Category {
 					Name:         "API & Databases",
 					CategoryType: "subcategory",
 					Description:  "API clients, database clients, and local database servers.",
-					Apps: []Package{
+					Apps: []Application{
 						app("Postman", "postman", "database", "API development and testing client."),
 						app("Bruno", "bruno", "database", "Git-friendly API client."),
 						app("Insomnia", "insomnia-rest-api-client", "database", "REST, GraphQL, and API client."),
@@ -273,7 +268,7 @@ func Default() []Category {
 					Name:         "Playback & Audio",
 					CategoryType: "subcategory",
 					Description:  "Media players, audio tools, codecs, and streaming apps.",
-					Apps: []Package{
+					Apps: []Application{
 						app("iTunes", "itunes", "media", "Apple media library, playback, and device sync app."),
 						detect(app("VLC", "vlc", "media", "Media player for video and audio."), DetectRegistry, "VLC media player"),
 						app("AIMP", "aimp", "media", "Lightweight audio player with playlist and format support."),
@@ -297,7 +292,7 @@ func Default() []Category {
 					Name:         "Images & Graphics",
 					CategoryType: "subcategory",
 					Description:  "Image editors, viewers, screenshots, illustration, and 3D tools.",
-					Apps: []Package{
+					Apps: []Application{
 						app("Krita", "krita", "graphics", "Digital painting and illustration app."),
 						app("Blender", "blender", "graphics", "3D creation suite for modeling, rendering, and animation."),
 						app("Paint.NET", "paint.net", "graphics", "Lightweight image editor for Windows."),
@@ -318,7 +313,7 @@ func Default() []Category {
 					Name:         "Disc Tools",
 					CategoryType: "subcategory",
 					Description:  "CD, DVD, and image burning utilities.",
-					Apps: []Package{
+					Apps: []Application{
 						app("ImgBurn", "imgburn", "disc", "Disc image and optical media burning tool."),
 						app("CDBurnerXP", "cdburnerxp", "disc", "CD, DVD, Blu-ray, and ISO burning utility."),
 						app("InfraRecorder", "infrarecorder", "disc", "Open source CD and DVD burning utility."),
@@ -330,7 +325,7 @@ func Default() []Category {
 			Name:         "Gaming",
 			CategoryType: "category",
 			Description:  "Game launchers and gaming communication tools.",
-			Apps: []Package{
+			Apps: []Application{
 				detect(app("Steam", "steam", "gaming", "Steam game launcher and store."), DetectRegistry, "Steam"),
 				app("Epic Games Launcher", "epicgameslauncher", "gaming", "Epic Games Store launcher."),
 				detect(app("Heroic Games Launcher", "heroic-games-launcher", "gaming", "Open source launcher for Epic, GOG, and Amazon games."), DetectRegistry, "Heroic"),
@@ -351,7 +346,7 @@ func Default() []Category {
 					Name:         "Remote Access",
 					CategoryType: "subcategory",
 					Description:  "Remote desktop and VNC tools.",
-					Apps: []Package{
+					Apps: []Application{
 						app("AnyDesk", "anydesk", "remote", "Remote desktop access tool."),
 						app("TeamViewer", "teamviewer", "remote", "Remote access and support tool."),
 						app("RealVNC Server", "vnc-connect", "remote", "RealVNC server for remote desktop access."),
@@ -367,7 +362,7 @@ func Default() []Category {
 					Name:         "File & System",
 					CategoryType: "subcategory",
 					Description:  "File copy, cleanup, search, launchers, and system shell utilities.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(app("Everything", "everything", "utility", "Fast local file search tool."), DetectRegistry, "Everything"),
 						app("TeraCopy", "teracopy", "utility", "File copy utility with verification and queueing."),
 						app("Revo Uninstaller", "revo-uninstaller", "utility", "Application uninstaller and cleanup tool."),
@@ -402,7 +397,7 @@ func Default() []Category {
 					Name:         "Archives",
 					CategoryType: "subcategory",
 					Description:  "Archive managers and compression tools.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(app("7-Zip", "7zip", "archive", "File archiver with broad format support."), DetectRegistry, "7-Zip"),
 						app("WinRAR", "winrar", "archive", "Archive manager for RAR, ZIP, and other formats."),
 						app("PeaZip", "peazip", "archive", "Open source archive manager."),
@@ -412,7 +407,7 @@ func Default() []Category {
 					Name:         "Security & Passwords",
 					CategoryType: "subcategory",
 					Description:  "Password managers and malware removal tools.",
-					Apps: []Package{
+					Apps: []Application{
 						app("Bitwarden", "bitwarden", "security", "Password manager desktop app."),
 						app("KeePass 2", "keepass", "security", "Local password manager."),
 						app("Malwarebytes", "malwarebytes", "security", "Anti-malware scanning and cleanup tool."),
@@ -425,7 +420,7 @@ func Default() []Category {
 					Name:         "Network & Transfer",
 					CategoryType: "subcategory",
 					Description:  "FTP, SSH, torrent, and file transfer clients.",
-					Apps: []Package{
+					Apps: []Application{
 						app("FileZilla", "filezilla", "network", "FTP, FTPS, and SFTP client."),
 						app("WinSCP", "winscp", "network", "SFTP, SCP, FTP, and WebDAV file transfer client."),
 						app("PuTTY", "putty", "network", "SSH and Telnet client."),
@@ -443,7 +438,7 @@ func Default() []Category {
 					Name:         "Cloud & Documents",
 					CategoryType: "subcategory",
 					Description:  "Cloud sync, office suites, notes, and document readers.",
-					Apps: []Package{
+					Apps: []Application{
 						app("Dropbox", "dropbox", "productivity", "Cloud file sync desktop app."),
 						app("Google Drive", "googledrive", "productivity", "Google Drive desktop sync app."),
 						app("LibreOffice", "libreoffice-fresh", "productivity", "Open source office suite."),
@@ -459,7 +454,7 @@ func Default() []Category {
 					Name:         "Editors",
 					CategoryType: "subcategory",
 					Description:  "Text editors and code-oriented desktop apps.",
-					Apps: []Package{
+					Apps: []Application{
 						detect(app("Notepad++", "notepadplusplus", "editor", "Fast text and source code editor."), DetectRegistry, "Notepad++"),
 						app("Cursor", "cursoride", "editor", "AI-powered code editor based on VS Code."),
 						app("WinMerge", "winmerge", "editor", "File and folder comparison tool."),
@@ -469,7 +464,7 @@ func Default() []Category {
 					Name:         "Imaging & Virtualization",
 					CategoryType: "subcategory",
 					Description:  "USB imaging, virtual machines, and installer utilities.",
-					Apps: []Package{
+					Apps: []Application{
 						app("balenaEtcher", "etcher", "virtualization", "Bootable USB and SD card image writer."),
 						app("VirtualBox", "virtualbox", "virtualization", "Virtual machine platform."),
 					},
@@ -490,9 +485,6 @@ func normalizeCategories(categories []Category) {
 			app := &category.Apps[appIndex]
 			if app.Category == "" {
 				app.Category = app.CategoryType
-			}
-			if app.Source == "" {
-				app.Source = PackageSourceChocolatey
 			}
 			app.Verified = true
 		}
