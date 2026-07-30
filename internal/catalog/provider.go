@@ -16,8 +16,36 @@ const (
 	InstallStrategyDirectInstaller InstallStrategy = "DirectInstaller"
 )
 
+type InstallerType string
+
+const (
+	InstallerTypeExecutable InstallerType = "Executable"
+)
+
+type InstallerArchitecture string
+
+const (
+	InstallerArchitectureAny   InstallerArchitecture = ""
+	InstallerArchitectureX64   InstallerArchitecture = "x64"
+	InstallerArchitectureARM64 InstallerArchitecture = "arm64"
+)
+
+type DirectDownload struct {
+	URL          string
+	Architecture InstallerArchitecture
+}
+
+type DirectInstallerMetadata struct {
+	Downloads      []DirectDownload
+	Filename       string
+	SilentArgs     []string
+	InstallerType  InstallerType
+	ChecksumSHA256 string
+}
+
 type ProviderMetadata struct {
 	Prerelease bool
+	Direct     *DirectInstallerMetadata
 }
 
 type Provider struct {
@@ -48,5 +76,14 @@ func chocolateyProvider(packageID string) Provider {
 		Type:      ProviderChocolatey,
 		PackageID: packageID,
 		Strategy:  InstallStrategyPackageManager,
+	}
+}
+
+func directProvider(packageID string, metadata DirectInstallerMetadata) Provider {
+	return Provider{
+		Type:      ProviderDirect,
+		PackageID: packageID,
+		Strategy:  InstallStrategyDirectInstaller,
+		Metadata:  ProviderMetadata{Direct: &metadata},
 	}
 }

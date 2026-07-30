@@ -21,6 +21,10 @@ func (p *fakeProvider) Type() catalog.ProviderType {
 	return testProviderType
 }
 
+func (p *fakeProvider) Validate(catalog.Application, catalog.Provider) error {
+	return nil
+}
+
 func (p *fakeProvider) Install(_ context.Context, app catalog.Application, provider catalog.Provider, opts providers.InstallOptions) error {
 	p.called = true
 	p.applicationID = app.ID

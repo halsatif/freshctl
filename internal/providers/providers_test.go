@@ -21,7 +21,6 @@ func TestChocolateyIsRegistered(t *testing.T) {
 func TestUnimplementedProvidersAreNotRegistered(t *testing.T) {
 	for _, providerType := range []catalog.ProviderType{
 		catalog.ProviderWinget,
-		catalog.ProviderDirect,
 		catalog.ProviderCommunity,
 	} {
 		if _, ok := Get(providerType); ok {
@@ -67,6 +66,10 @@ type noopInstaller struct{}
 
 func (noopInstaller) Type() catalog.ProviderType {
 	return "NoopProvider"
+}
+
+func (noopInstaller) Validate(catalog.Application, catalog.Provider) error {
+	return nil
 }
 
 func (noopInstaller) Install(context.Context, catalog.Application, catalog.Provider, InstallOptions) error {

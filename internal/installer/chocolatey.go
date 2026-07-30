@@ -68,15 +68,11 @@ type BootstrapEvent struct {
 }
 
 func CommandFor(app catalog.Application) string {
-	provider, ok := app.PrimaryProvider()
-	if !ok {
-		return fmt.Sprintf("no install provider configured for %s", app.Name)
+	provider, providerInstaller, err := resolveApplicationProvider(app)
+	if err != nil {
+		return err.Error()
 	}
-	installer, ok := providers.Get(provider.Type)
-	if !ok {
-		return fmt.Sprintf("unknown package provider: %s", provider.Type)
-	}
-	if commandProvider, ok := installer.(providers.CommandProvider); ok {
+	if commandProvider, ok := providerInstaller.(providers.CommandProvider); ok {
 		return commandProvider.Command(app, provider)
 	}
 	return fmt.Sprintf("%s install %s", provider.Type, provider.PackageID)
@@ -150,22 +146,20 @@ func InstallApps(ctx context.Context, apps []catalog.Application, events chan<- 
 	type resolvedProvider struct {
 		metadata  catalog.Provider
 		installer providers.Installer
+		err       error
 	}
 
 	resolvedProviders := make(map[string]resolvedProvider, len(apps))
 	needsChocolatey := false
 	for _, app := range apps {
-		provider, ok := app.PrimaryProvider()
-		if !ok {
-			continue
-		}
-		providerInstaller, ok := providers.Get(provider.Type)
-		if !ok {
-			continue
-		}
+		provider, providerInstaller, err := resolveApplicationProvider(app)
 		resolvedProviders[app.ID] = resolvedProvider{
 			metadata:  provider,
 			installer: providerInstaller,
+			err:       err,
+		}
+		if err != nil {
+			continue
 		}
 		if provider.Type == catalog.ProviderChocolatey {
 			needsChocolatey = true
@@ -199,8 +193,11 @@ func InstallApps(ctx context.Context, apps []catalog.Application, events chan<- 
 
 		drainSkipRequests(skips)
 		resolved, ok := resolvedProviders[app.ID]
-		if !ok {
-			err := providerResolutionError(app)
+		if !ok || resolved.err != nil {
+			err := resolved.err
+			if err == nil {
+				err = fmt.Errorf("provider resolution failed for %s", app.Name)
+			}
 			results = append(results, Result{App: app, Err: err})
 			events <- Event{Kind: EventAppStarted, App: app, Line: err.Error()}
 			events <- Event{Kind: EventAppFinished, App: app, Err: err}
@@ -225,12 +222,19 @@ func InstallApps(ctx context.Context, apps []catalog.Application, events chan<- 
 	events <- Event{Kind: EventSummary, Results: results}
 }
 
-func providerResolutionError(app catalog.Application) error {
+func resolveApplicationProvider(app catalog.Application) (catalog.Provider, providers.Installer, error) {
 	provider, ok := app.PrimaryProvider()
 	if !ok {
-		return fmt.Errorf("no install provider configured for %s", app.Name)
+		return catalog.Provider{}, nil, fmt.Errorf("no install provider configured for %s", app.Name)
 	}
-	return fmt.Errorf("unknown package provider: %s", provider.Type)
+	providerInstaller, ok := providers.Get(provider.Type)
+	if !ok {
+		return provider, nil, fmt.Errorf("unknown package provider: %s", provider.Type)
+	}
+	if err := providerInstaller.Validate(app, provider); err != nil {
+		return provider, providerInstaller, fmt.Errorf("invalid %s provider for %s: %w", provider.Type, app.Name, err)
+	}
+	return provider, providerInstaller, nil
 }
 
 func BootstrapPackageManager(ctx context.Context, events chan<- BootstrapEvent) {

@@ -48,11 +48,31 @@ func (c *Chocolatey) Type() catalog.ProviderType {
 	return catalog.ProviderChocolatey
 }
 
+func (c *Chocolatey) Validate(_ catalog.Application, provider catalog.Provider) error {
+	if provider.Type != catalog.ProviderChocolatey {
+		return fmt.Errorf("Chocolatey provider has unexpected type %q", provider.Type)
+	}
+	if provider.Strategy != catalog.InstallStrategyPackageManager {
+		return fmt.Errorf("Chocolatey provider has unsupported install strategy %q", provider.Strategy)
+	}
+	if strings.TrimSpace(provider.PackageID) == "" {
+		return errors.New("Chocolatey provider package ID is required")
+	}
+	if provider.Metadata.Direct != nil {
+		return errors.New("Chocolatey provider contains unsupported direct installer metadata")
+	}
+	return nil
+}
+
 func (c *Chocolatey) Command(_ catalog.Application, provider catalog.Provider) string {
 	return "choco " + strings.Join(installArgs(provider), " ")
 }
 
 func (c *Chocolatey) Install(ctx context.Context, app catalog.Application, provider catalog.Provider, opts InstallOptions) error {
+	if err := c.Validate(app, provider); err != nil {
+		return err
+	}
+
 	appCtx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
 

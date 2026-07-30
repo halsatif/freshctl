@@ -145,33 +145,22 @@ type profileImportMsg struct {
 
 func NewModel(args []string) Model {
 	initialScreen := screenWelcome
-	bootstrapStatus := ""
 	categories := catalog.Default()
 	selected := selectedFromArgs(args)
 	if selected == nil {
 		selected = make(map[string]bool)
 	}
-	if installer.HasBrokenPackageManagerInstall() {
-		initialScreen = screenBrokenChocolatey
-	} else if !installer.HasPackageManager() {
-		if installer.IsElevated() {
-			initialScreen = screenBootstrap
-			bootstrapStatus = "Chocolatey was not found on this system."
-		} else {
-			initialScreen = screenElevation
-		}
-	} else if len(selected) > 0 {
+	if len(selected) > 0 {
 		initialScreen = screenReview
 	}
 
 	model := Model{
-		screen:          initialScreen,
-		categories:      categories,
-		presets:         presetpkg.Default(),
-		selected:        selected,
-		bootstrapBack:   screenWelcome,
-		bootstrapStatus: bootstrapStatus,
-		brokenBack:      screenWelcome,
+		screen:        initialScreen,
+		categories:    categories,
+		presets:       presetpkg.Default(),
+		selected:      selected,
+		bootstrapBack: screenWelcome,
+		brokenBack:    screenWelcome,
 	}
 	model.RefreshInstalledStatus()
 	return model
@@ -549,30 +538,32 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.notice = "No apps selected. Go back and choose at least one app."
 			return m, nil
 		}
-		if installer.HasBrokenPackageManagerInstall() {
-			m.notice = ""
-			m.screen = screenBrokenChocolatey
-			m.brokenBack = screenReview
-			m.brokenError = ""
-			m.brokenRunning = false
-			return m, nil
-		}
-		if !installer.HasPackageManager() {
-			m.notice = ""
-			if !installer.IsElevated() {
-				m.screen = screenElevation
-				m.elevationError = ""
-				m.elevationRunning = false
-				m.elevationArgs = m.selectedArgs()
+		if applicationsUseProvider(apps, catalog.ProviderChocolatey) {
+			if installer.HasBrokenPackageManagerInstall() {
+				m.notice = ""
+				m.screen = screenBrokenChocolatey
+				m.brokenBack = screenReview
+				m.brokenError = ""
+				m.brokenRunning = false
 				return m, nil
 			}
-			m.screen = screenBootstrap
-			m.bootstrapBack = screenReview
-			m.bootstrapLog = nil
-			m.bootstrapStatus = "Chocolatey was not found on this system."
-			m.showBootstrapLog = false
-			m.bootstrapRunning = false
-			return m, nil
+			if !installer.HasPackageManager() {
+				m.notice = ""
+				if !installer.IsElevated() {
+					m.screen = screenElevation
+					m.elevationError = ""
+					m.elevationRunning = false
+					m.elevationArgs = m.selectedArgs()
+					return m, nil
+				}
+				m.screen = screenBootstrap
+				m.bootstrapBack = screenReview
+				m.bootstrapLog = nil
+				m.bootstrapStatus = "Chocolatey was not found on this system."
+				m.showBootstrapLog = false
+				m.bootstrapRunning = false
+				return m, nil
+			}
 		}
 		if !installer.IsElevated() {
 			m.screen = screenElevation
@@ -586,6 +577,15 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func applicationsUseProvider(apps []catalog.Application, providerType catalog.ProviderType) bool {
+	for _, app := range apps {
+		if _, ok := app.ProviderByType(providerType); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (m Model) handleProfileExportMsg(msg profileExportMsg) (tea.Model, tea.Cmd) {

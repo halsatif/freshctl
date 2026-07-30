@@ -142,8 +142,12 @@ func validateMetadata(packages []catalog.Application) error {
 			if !validInstallStrategy(provider.Strategy) {
 				return fmt.Errorf("%s (%s) has invalid install strategy %q", pkg.Name, pkg.ID, provider.Strategy)
 			}
-			if _, ok := providers.Get(provider.Type); !ok {
+			providerInstaller, ok := providers.Get(provider.Type)
+			if !ok {
 				return fmt.Errorf("%s (%s) uses provider %q without an installer implementation", pkg.Name, pkg.ID, provider.Type)
+			}
+			if err := providerInstaller.Validate(pkg, provider); err != nil {
+				return fmt.Errorf("%s (%s) has invalid provider metadata: %w", pkg.Name, pkg.ID, err)
 			}
 		}
 		if !pkg.Verified {

@@ -77,29 +77,53 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 	}
 }
 
-func TestDefaultPackagesStillUseChocolatey(t *testing.T) {
+func TestOnlyVSCodeUsesDirectProvider(t *testing.T) {
 	for _, app := range collectPackages(Default()) {
 		if len(app.Providers) != 1 {
-			t.Fatalf("%s should have exactly one provider during migration, got %d", app.Name, len(app.Providers))
+			t.Fatalf("%s should have exactly one provider, got %d", app.Name, len(app.Providers))
 		}
 		provider := app.Providers[0]
-		if provider.Type != ProviderChocolatey {
+		expectedType := ProviderChocolatey
+		expectedStrategy := InstallStrategyPackageManager
+		if app.ID == "vscode" {
+			expectedType = ProviderDirect
+			expectedStrategy = InstallStrategyDirectInstaller
+		}
+		if provider.Type != expectedType {
+			t.Fatalf("%s should use %s, got %q", app.Name, expectedType, provider.Type)
+		}
+		if provider.Strategy != expectedStrategy {
+			t.Fatalf("%s should use strategy %s, got %q", app.Name, expectedStrategy, provider.Strategy)
+		}
+		if app.ID != "vscode" && provider.Type != ProviderChocolatey {
 			t.Fatalf("%s should still use Chocolatey, got %q", app.Name, provider.Type)
 		}
 		if provider.PackageID != app.ID {
-			t.Fatalf("%s should preserve its Chocolatey package ID, got %q", app.Name, provider.PackageID)
+			t.Fatalf("%s should preserve its provider package ID, got %q", app.Name, provider.PackageID)
 		}
 	}
 }
 
 func TestProviderLookup(t *testing.T) {
 	app := packagesByID(Default())["vscode"]
-	provider, ok := app.ProviderByType(ProviderChocolatey)
+	provider, ok := app.ProviderByType(ProviderDirect)
 	if !ok {
-		t.Fatal("VS Code should expose its Chocolatey provider")
+		t.Fatal("VS Code should expose its Direct provider")
 	}
 	if provider.PackageID != "vscode" {
 		t.Fatalf("unexpected VS Code provider package ID %q", provider.PackageID)
+	}
+	if provider.Metadata.Direct == nil {
+		t.Fatal("VS Code should include direct installer metadata")
+	}
+	if provider.Metadata.Direct.InstallerType != InstallerTypeExecutable {
+		t.Fatalf("unexpected VS Code installer type %q", provider.Metadata.Direct.InstallerType)
+	}
+	if len(provider.Metadata.Direct.Downloads) != 2 {
+		t.Fatalf("VS Code should provide x64 and arm64 downloads, got %d", len(provider.Metadata.Direct.Downloads))
+	}
+	if len(provider.Metadata.Direct.SilentArgs) == 0 {
+		t.Fatal("VS Code should include silent installer arguments")
 	}
 }
 

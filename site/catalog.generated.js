@@ -158,7 +158,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "vscode",
     "category": "editor",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Code editor with extensions and integrated tools."
   },

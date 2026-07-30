@@ -553,10 +553,14 @@ func (m Model) viewBootstrap() string {
 }
 
 func (m Model) viewElevation() string {
+	description := "freshctl needs administrator privileges to install selected applications."
+	if applicationsUseProvider(m.selectedApps(), catalog.ProviderChocolatey) {
+		description = "freshctl needs administrator privileges to install Chocolatey and selected applications."
+	}
 	lines := []string{
 		titleStyle.Render("administrator privileges required"),
 		"",
-		"freshctl needs administrator privileges to install Chocolatey and applications.",
+		description,
 		"",
 	}
 

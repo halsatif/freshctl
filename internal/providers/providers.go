@@ -13,6 +13,7 @@ type InstallOptions struct {
 
 type Installer interface {
 	Type() catalog.ProviderType
+	Validate(app catalog.Application, provider catalog.Provider) error
 	Install(ctx context.Context, app catalog.Application, provider catalog.Provider, opts InstallOptions) error
 }
 
@@ -36,4 +37,5 @@ func Get(providerType catalog.ProviderType) (Installer, bool) {
 
 func init() {
 	Register(&Chocolatey{})
+	Register(NewDirect())
 }

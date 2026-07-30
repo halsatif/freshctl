@@ -64,6 +64,11 @@ func detect(app Application, method DetectMethod, value string) Application {
 	return app
 }
 
+func withProvider(app Application, provider Provider) Application {
+	app.Providers = []Provider{provider}
+	return app
+}
+
 func packageWithType(name, id, category, description string, packageType PackageType) Application {
 	return Application{
 		ID:           id,
@@ -120,7 +125,18 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Code editors and development workspaces.",
 					Apps: []Application{
-						detect(app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."), DetectRegistry, "Visual Studio Code"),
+						withProvider(
+							detect(app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."), DetectRegistry, "Visual Studio Code"),
+							directProvider("vscode", DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									{URL: "https://update.code.visualstudio.com/latest/win32-x64/stable", Architecture: InstallerArchitectureX64},
+									{URL: "https://update.code.visualstudio.com/latest/win32-arm64/stable", Architecture: InstallerArchitectureARM64},
+								},
+								Filename:      "VSCodeSetup.exe",
+								SilentArgs:    []string{"/VERYSILENT", "/NORESTART", "/MERGETASKS=!runcode"},
+								InstallerType: InstallerTypeExecutable,
+							}),
+						),
 						app("Zed", "zed-editor", "editor", "Fast collaborative code editor."),
 						app("Sublime Text", "sublimetext4", "editor", "Fast text and code editor."),
 						detect(cli("Neovim", "neovim", "editor", "Terminal-based code editor. Run with nvim."), DetectPath, "nvim.exe"),

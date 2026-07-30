@@ -938,13 +938,9 @@ func TestRussianKeyboardAliasesWorkForCatalogActions(t *testing.T) {
 }
 
 func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
-	app := catalog.Application{
-		Name:        "Visual Studio Code",
-		Description: "Code editor with extensions and integrated tools.",
-		ID:          "vscode",
-		Type:        catalog.PackageTypeApplication,
-		Providers:   testChocolateyProviders("vscode"),
-		Verified:    true,
+	app, ok := packagesByIDForTUITest(catalog.Default())["vscode"]
+	if !ok {
+		t.Fatal("expected Visual Studio Code in default catalog")
 	}
 
 	view := stripANSI(fitDetailsLines(packageDetailsLines(app, "No", ""), 40, 18))
@@ -956,7 +952,7 @@ func TestPackageDetailsPanelShowsMetadata(t *testing.T) {
 		"Type:",
 		"Application",
 		"Manager:",
-		"Chocolatey",
+		"Direct",
 		"Verified:",
 		"Yes",
 		"Description:",
@@ -1094,6 +1090,40 @@ func TestNewModelScansInstalledStatusAtStartup(t *testing.T) {
 	status, ok := model.installed["googlechrome"]
 	if !ok || !status.Checked {
 		t.Fatalf("NewModel should populate installed status cache for packages with detection metadata, got %#v ok=%v", status, ok)
+	}
+}
+
+func TestApplicationsUseProvider(t *testing.T) {
+	directApp := catalog.Application{
+		ID: "direct-app",
+		Providers: []catalog.Provider{{
+			Type:      catalog.ProviderDirect,
+			PackageID: "direct-app",
+			Strategy:  catalog.InstallStrategyDirectInstaller,
+		}},
+	}
+	chocolateyApp := catalog.Application{
+		ID:        "chocolatey-app",
+		Providers: testChocolateyProviders("chocolatey-app"),
+	}
+
+	if applicationsUseProvider([]catalog.Application{directApp}, catalog.ProviderChocolatey) {
+		t.Fatal("Direct-only selection should not require Chocolatey")
+	}
+	if !applicationsUseProvider([]catalog.Application{directApp, chocolateyApp}, catalog.ProviderChocolatey) {
+		t.Fatal("mixed selection should require Chocolatey")
+	}
+}
+
+func TestNewModelDoesNotRequireChocolateyBeforeBrowsing(t *testing.T) {
+	model := NewModel(nil)
+	if model.screen != screenWelcome {
+		t.Fatalf("fresh startup should open welcome before provider checks, got screen %v", model.screen)
+	}
+
+	selectedModel := NewModel([]string{"--selected=vscode"})
+	if selectedModel.screen != screenReview {
+		t.Fatalf("elevated relaunch selection should return to review, got screen %v", selectedModel.screen)
 	}
 }
 
