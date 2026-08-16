@@ -41,8 +41,13 @@ var (
 	successStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42"))
 
-	hotkeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250")).
-			Background(lipgloss.Color("236")).
-			Padding(0, 1)
+	footerKeyStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("39"))
+
+	footerDescriptionStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("245"))
+
+	footerSeparatorStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240"))
 )

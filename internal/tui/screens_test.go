@@ -44,7 +44,7 @@ func TestCatalogViewRendersSingleCleanScreen(t *testing.T) {
 	if count := strings.Count(view, "freshctl"); count != 1 {
 		t.Fatalf("catalog view should render one title, got %d in:\n%s", count, view)
 	}
-	if count := strings.Count(view, "up/down move"); count != 1 {
+	if count := strings.Count(view, "↑↓ move"); count != 1 {
 		t.Fatalf("catalog view should render one footer, got %d in:\n%s", count, view)
 	}
 }
@@ -174,7 +174,7 @@ func TestPresetPreviewClipsLongPackageList(t *testing.T) {
 	if !strings.Contains(view, "...and") {
 		t.Fatalf("long preset preview should show clipped package count, got:\n%s", view)
 	}
-	if !strings.Contains(view, "q quit") {
+	if !strings.Contains(view, "? help") {
 		t.Fatalf("preset picker footer should remain visible, got:\n%s", view)
 	}
 }
@@ -1545,7 +1545,7 @@ func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
 	if !strings.Contains(view, "0 failed") {
 		t.Fatalf("skipped package should produce zero failures, got:\n%s", view)
 	}
-	if !strings.Contains(view, "Selected: 1") || !strings.Contains(view, "Already installed: 1") || !strings.Contains(view, "Will install: 0") {
+	if !strings.Contains(view, "Selected: 1") || !strings.Contains(view, "Already installed: 1") || !strings.Contains(view, "Remaining: 0") {
 		t.Fatalf("install counts should include skipped packages, got:\n%s", view)
 	}
 }
@@ -1754,8 +1754,229 @@ func TestBootstrapLogToggleShowsClippedLogs(t *testing.T) {
 	if strings.Contains(view, "first line should scroll away") {
 		t.Fatalf("bootstrap logs should be clipped to visible height, got:\n%s", view)
 	}
-	if count := strings.Count(view, "l show/hide logs"); count != 1 {
+	if count := strings.Count(view, "•  l logs"); count != 1 {
 		t.Fatalf("bootstrap footer should remain visible once, got %d in:\n%s", count, view)
+	}
+}
+
+func TestInstallScreenNeverRendersRawLogs(t *testing.T) {
+	app := catalog.Application{
+		Name:      "Visual Studio Code",
+		ID:        "vscode",
+		Providers: []catalog.Provider{{Type: catalog.ProviderDirect}},
+	}
+	model := Model{
+		screen:        screenInstall,
+		width:         100,
+		height:        24,
+		installApps:   []catalog.Application{app},
+		appStatus:     map[string]string{app.ID: "installing"},
+		appElapsed:    map[string]time.Duration{},
+		currentApp:    app,
+		currentStep:   1,
+		currentStatus: "Installing...",
+		installLogs: []installLogEntry{{
+			Application: app.Name,
+			Line:        "RAW PROVIDER OUTPUT THAT MUST STAY OFF THE INSTALL SCREEN",
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "RAW PROVIDER OUTPUT") {
+		t.Fatalf("install screen must not render raw logs, got:\n%s", view)
+	}
+	if !strings.Contains(view, "l logs") {
+		t.Fatalf("install footer should open the dedicated logs screen, got:\n%s", view)
+	}
+	if strings.Contains(view, "show/hide logs") {
+		t.Fatalf("install footer should no longer advertise inline logs, got:\n%s", view)
+	}
+}
+
+func TestInstallLogScreenNavigationPreservesInstallState(t *testing.T) {
+	app := catalog.Application{Name: "VLC", ID: "vlc"}
+	model := Model{
+		screen:        screenInstall,
+		width:         100,
+		height:        20,
+		installApps:   []catalog.Application{app},
+		appStatus:     map[string]string{app.ID: "installing"},
+		currentApp:    app,
+		currentStep:   1,
+		currentStatus: "Downloading... 50%",
+		installLogs:   []installLogEntry{{Application: app.Name, Line: "downloading 50%"}},
+		logFollow:     true,
+	}
+
+	updated, _ := model.handleInstallKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	logs := updated.(Model)
+	if logs.screen != screenInstallLogs {
+		t.Fatalf("l should open logs screen, got screen %v", logs.screen)
+	}
+	if logs.currentStep != model.currentStep || logs.currentStatus != model.currentStatus ||
+		logs.appStatus[app.ID] != model.appStatus[app.ID] || len(logs.installLogs) != len(model.installLogs) {
+		t.Fatal("opening logs must preserve installation state")
+	}
+
+	updated, _ = logs.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	back := updated.(Model)
+	if back.screen != screenInstall {
+		t.Fatalf("esc should return to install screen, got screen %v", back.screen)
+	}
+
+	back.screen = screenInstallLogs
+	updated, _ = back.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if got := updated.(Model).screen; got != screenInstall {
+		t.Fatalf("l should also return to install screen, got screen %v", got)
+	}
+}
+
+func TestInstallLogsScrollAndKeepFooterVisible(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       80,
+		height:      14,
+		installLogs: fakeInstallLogEntries(12),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+	start := model.logScroll
+
+	updated, _ := model.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyUp})
+	scrolled := updated.(Model)
+	if scrolled.logScroll >= start {
+		t.Fatalf("up should move log viewport, start=%d got=%d", start, scrolled.logScroll)
+	}
+
+	view := stripANSI(scrolled.View())
+	if !strings.Contains(view, "↑↓ scroll") || !strings.Contains(view, "esc back") {
+		t.Fatalf("logs footer should remain visible after scrolling, got:\n%s", view)
+	}
+}
+
+func TestInstallLogsTruncateLongLines(t *testing.T) {
+	longLine := strings.Repeat("provider-output-", 20)
+	model := Model{
+		screen: screenInstallLogs,
+		width:  50,
+		height: 12,
+		installLogs: []installLogEntry{{
+			Application: "Very Long Application Name",
+			Line:        "\x1b[31m" + longLine + "\x1b[0m\t\x00",
+		}},
+		logFollow: true,
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, longLine) {
+		t.Fatalf("long log line should be truncated, got:\n%s", view)
+	}
+	if strings.Contains(view, "[31m") {
+		t.Fatalf("log control sequences should be sanitized, got:\n%s", view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if len([]rune(line)) > model.width {
+			t.Fatalf("log line exceeds terminal width %d: %q", model.width, line)
+		}
+	}
+}
+
+func TestInstallLogEventsAppendWhileViewing(t *testing.T) {
+	app := catalog.Application{Name: "Firefox", ID: "firefox"}
+	model := Model{
+		screen:        screenInstallLogs,
+		width:         80,
+		height:        14,
+		currentApp:    app,
+		currentStatus: "Installing...",
+		installLogs:   []installLogEntry{{Application: app.Name, Line: "first line"}},
+		logFollow:     true,
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind: installer.EventLog,
+			App:  app,
+			Line: "second line",
+		},
+	})
+	got := updated.(Model)
+	if got.screen != screenInstallLogs {
+		t.Fatal("receiving an install event should not close the logs screen")
+	}
+	if len(got.installLogs) != 2 || got.installLogs[1].Line != "second line" {
+		t.Fatalf("new install event should append to shared log buffer, got %#v", got.installLogs)
+	}
+	if !strings.Contains(stripANSI(got.View()), "[Firefox] second line") {
+		t.Fatalf("logs should identify the producing application, got:\n%s", stripANSI(got.View()))
+	}
+}
+
+func TestInstallLogAutoFollowStopsAndResumes(t *testing.T) {
+	model := Model{
+		screen:    screenInstallLogs,
+		width:     80,
+		height:    12,
+		logFollow: true,
+	}
+	for _, entry := range fakeInstallLogEntries(10) {
+		model.appendInstallLog(catalog.Application{Name: entry.Application}, entry.Line)
+	}
+	if model.logScroll != model.maxLogScroll() {
+		t.Fatalf("following logs should stay at bottom, scroll=%d max=%d", model.logScroll, model.maxLogScroll())
+	}
+
+	model.moveLogScroll(-2)
+	pausedAt := model.logScroll
+	if model.logFollow {
+		t.Fatal("manual upward scrolling should disable auto-follow")
+	}
+	model.appendInstallLog(catalog.Application{Name: "Package"}, "new while paused")
+	if model.logScroll != pausedAt {
+		t.Fatalf("new logs should not force a manually scrolled viewport down, got %d want %d", model.logScroll, pausedAt)
+	}
+
+	updated, _ := model.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyEnd})
+	model = updated.(Model)
+	if !model.logFollow || model.logScroll != model.maxLogScroll() {
+		t.Fatalf("end should resume auto-follow, scroll=%d max=%d follow=%v", model.logScroll, model.maxLogScroll(), model.logFollow)
+	}
+	model.appendInstallLog(catalog.Application{Name: "Package"}, "new at bottom")
+	if model.logScroll != model.maxLogScroll() {
+		t.Fatalf("auto-follow should track appended logs, scroll=%d max=%d", model.logScroll, model.maxLogScroll())
+	}
+}
+
+func TestInstallScreenUsesProviderNeutralStatus(t *testing.T) {
+	app := catalog.Application{Name: "Example App", ID: "example"}
+	model := Model{
+		screen:      screenInstall,
+		width:       90,
+		height:      20,
+		installApps: []catalog.Application{app},
+		appStatus:   map[string]string{app.ID: "installing"},
+		appElapsed:  map[string]time.Duration{},
+		currentApp:  app,
+		currentStep: 1,
+		logFollow:   true,
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{
+		ok: true,
+		event: installer.Event{
+			Kind: installer.EventLog,
+			App:  app,
+			Line: "Downloading package from provider-internal-endpoint 70%",
+		},
+	})
+	got := updated.(Model)
+	view := stripANSI(got.View())
+	if !strings.Contains(view, "Status: Downloading... 70%") {
+		t.Fatalf("install screen should show compact provider-neutral progress, got:\n%s", view)
+	}
+	if strings.Contains(view, "provider-internal-endpoint") {
+		t.Fatalf("install screen should not expose raw provider output, got:\n%s", view)
 	}
 }
 
@@ -1784,7 +2005,7 @@ func TestInstallSummaryScrollsLongPackageList(t *testing.T) {
 	if firstView == secondView {
 		t.Fatalf("scrolling install summary should change visible rows")
 	}
-	if !strings.Contains(secondView, "up/down scroll") {
+	if !strings.Contains(secondView, "l logs") {
 		t.Fatalf("install footer should remain visible after scrolling, got:\n%s", secondView)
 	}
 }
@@ -2292,6 +2513,17 @@ func fakeInstallPackages(count int) []catalog.Application {
 		})
 	}
 	return apps
+}
+
+func fakeInstallLogEntries(count int) []installLogEntry {
+	entries := make([]installLogEntry, 0, count)
+	for i := 1; i <= count; i++ {
+		entries = append(entries, installLogEntry{
+			Application: "Package " + twoDigit(i),
+			Line:        "log line " + twoDigit(i),
+		})
+	}
+	return entries
 }
 
 func testChocolateyProviders(packageID string) []catalog.Provider {

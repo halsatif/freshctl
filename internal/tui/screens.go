@@ -19,7 +19,7 @@ func (m Model) viewWelcome() string {
 		"Choose apps from a small catalog and install them with Chocolatey.",
 		"Nothing runs until you confirm the review screen.",
 		"",
-		hotkeyBar("enter continue", "q quit"),
+		m.footerFor(screenWelcome),
 	}, "\n")
 
 	return place(body, m.width, m.height)
@@ -52,7 +52,7 @@ func (m Model) viewModeSelect() string {
 		)
 	}
 
-	lines = append(lines, "", hotkeyBar("up/down move", "enter confirm", "q quit"))
+	lines = append(lines, "", m.footerFor(screenModeSelect))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -96,15 +96,7 @@ func (m Model) viewCatalog() string {
 	if m.notice != "" {
 		parts = append(parts, "", errorStyle.Render(m.notice))
 	}
-	if m.searchFocused {
-		parts = append(parts, "", hotkeyBar("up/down move", "enter done", "backspace edit", "esc clear", "q quit"))
-	} else if m.searchActive() {
-		parts = append(parts, "", hotkeyBar("up/down move", "space select", "p presets", "o profile", "i install", "esc clear", "q quit"))
-	} else if m.catalogMode == catalogModeFull {
-		parts = append(parts, "", hotkeyBar("up/down move", "/ search", "space select", "p presets", "o profile", "i install", "esc back/clear", "q quit"))
-	} else {
-		parts = append(parts, "", hotkeyBar("up/down move", "enter open", "space select", "p presets", "o profile", "esc back", "i install", "q quit"))
-	}
+	parts = append(parts, "", m.footerFor(screenCatalog))
 
 	return place(strings.Join(parts, "\n"), m.width, m.height)
 }
@@ -128,7 +120,7 @@ func (m Model) viewPresetPicker() string {
 		"",
 		content,
 		"",
-		hotkeyBar("up/down move", "enter apply", "esc back", "q quit"),
+		m.footerFor(screenPresetPicker),
 	}
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
@@ -410,11 +402,11 @@ func (m Model) viewReview() string {
 	}
 
 	if len(selected) == 0 {
-		lines = append(lines, "", mutedStyle.Render("No apps selected yet. Press b to return to the catalog."))
+		lines = append(lines, "", mutedStyle.Render("No apps selected yet. Press esc to return to the catalog."))
 	} else {
 		rangeLine := fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(selected))
 		if len(selected) > visibleRows {
-			rangeLine += " (up/down or pgup/pgdown to scroll)"
+			rangeLine += " (use ↑/↓ or PageUp/PageDown to scroll)"
 		}
 		lines = append(lines, "", "Selected apps:", mutedStyle.Render(rangeLine))
 		for i := start; i < end; i++ {
@@ -429,7 +421,7 @@ func (m Model) viewReview() string {
 		lines = append(lines, "", errorStyle.Render(m.notice))
 	}
 
-	lines = append(lines, "", hotkeyBar("up/down scroll", "e export profile", "enter install", "b/esc back", "q quit"))
+	lines = append(lines, "", m.footerFor(screenReview))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -461,11 +453,10 @@ func (m Model) viewInstall() string {
 		spin = spinnerFrame(m.spinnerFrame)
 	}
 
-	command := m.currentCmd
-	if command == "" {
-		command = "waiting for Chocolatey..."
+	status := m.currentStatus
+	if status == "" {
+		status = "Preparing installation..."
 	}
-	command = fitLine(command, contentWidth)
 
 	lines := []string{
 		titleStyle.Render("install"),
@@ -476,21 +467,8 @@ func (m Model) viewInstall() string {
 	lines = append(lines,
 		mutedStyle.Render(m.installPlanLine()),
 		fitLine(fmt.Sprintf("%s current: %s%s %s", spin, currentName, elapsed, mutedStyle.Render(progress)), contentWidth),
-		mutedStyle.Render(command),
+		mutedStyle.Render(fitLine("Status: "+status, contentWidth)),
 	)
-
-	if !m.showFullLog {
-		lines = append(lines, "", mutedStyle.Render("Logs hidden. Press l to show full logs."))
-	} else {
-		logLines := tailLines(m.fullLog, installLogLimit(m.height))
-		lines = append(lines, "", mutedStyle.Render("full logs"))
-		if len(logLines) == 0 {
-			lines = append(lines, "  "+mutedStyle.Render("Waiting for output..."))
-		}
-		for _, line := range logLines {
-			lines = append(lines, fitLine("  "+sanitizeLogLine(line), contentWidth))
-		}
-	}
 
 	if m.installDone {
 		lines = append(lines, "", m.installDoneMessage())
@@ -506,7 +484,90 @@ func (m Model) viewInstall() string {
 	if m.installDone {
 		lines = append(lines, m.installFailureLines(contentWidth)...)
 	}
-	lines = append(lines, "", hotkeyBar("up/down scroll", "s skip app", "l show/hide logs", "q quit"))
+	lines = append(lines, "", m.footerFor(screenInstall))
+	return place(strings.Join(lines, "\n"), m.width, m.height)
+}
+
+func (m Model) viewInstallLogs() string {
+	contentWidth := pageWidth(m.width)
+	appName := "waiting for installation"
+	providerName := "-"
+	if m.currentApp.Name != "" {
+		appName = m.currentApp.Name
+		if provider, ok := m.currentApp.PrimaryProvider(); ok {
+			providerName = string(provider.Type)
+		}
+	}
+
+	lines := []string{
+		titleStyle.Render("logs"),
+		fitLine("application: "+appName, contentWidth),
+		fitLine("provider: "+providerName, contentWidth),
+		"",
+	}
+
+	visibleRows := m.installLogViewportHeight()
+	start, end := m.installLogRange()
+	for index := start; index < end; index++ {
+		lines = append(lines, formatInstallLogEntry(m.installLogs[index], contentWidth))
+	}
+	if start == end {
+		lines = append(lines, mutedStyle.Render("Waiting for output..."))
+	}
+	for len(lines) < 4+visibleRows {
+		lines = append(lines, "")
+	}
+
+	lines = append(lines, "", m.footerFor(screenInstallLogs))
+	return place(strings.Join(lines, "\n"), m.width, m.height)
+}
+
+func (m Model) viewHelp() string {
+	contentWidth := pageWidth(m.width)
+	hints := m.helpHintsFor(m.helpBack)
+	visibleRows := len(hints)
+	showHidden := false
+	if m.height > 0 {
+		availableRows := m.height - 5
+		if availableRows < 0 {
+			availableRows = 0
+		}
+		if visibleRows > availableRows {
+			visibleRows = availableRows
+			if availableRows >= 2 {
+				visibleRows--
+				showHidden = true
+			}
+		}
+	}
+
+	keyWidth := 12
+	for _, item := range hints[:visibleRows] {
+		if width := ansi.StringWidth(helpKeyLabel(item)); width > keyWidth {
+			keyWidth = width
+		}
+	}
+	if limit := maxInt(8, contentWidth/3); keyWidth > limit {
+		keyWidth = limit
+	}
+
+	lines := []string{
+		titleStyle.Render("help"),
+		mutedStyle.Render("shortcuts for " + screenName(m.helpBack)),
+		"",
+	}
+	for _, item := range hints[:visibleRows] {
+		key := fitLine(helpKeyLabel(item), keyWidth)
+		key = footerKeyStyle.Width(keyWidth).Render(key)
+		lines = append(lines, fitLine("  "+key+"  "+footerDescriptionStyle.Render(item.Description), contentWidth))
+	}
+	if showHidden {
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("  %d more shortcuts hidden at this height", len(hints)-visibleRows)))
+	}
+	lines = append(lines, "", m.footer(
+		hint("esc", "back", footerPriorityPrimary),
+		hint("?", "close", footerPrioritySecondary),
+	))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -548,7 +609,7 @@ func (m Model) viewBootstrap() string {
 		}
 	}
 
-	lines = append(lines, "", hotkeyBar("enter bootstrap", "l show/hide logs", "r retry", "b/esc back", "q quit"))
+	lines = append(lines, "", m.footerFor(screenBootstrap))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -574,7 +635,7 @@ func (m Model) viewElevation() string {
 		lines = append(lines, "", errorStyle.Render(m.elevationError))
 	}
 
-	lines = append(lines, "", hotkeyBar("enter relaunch as administrator", "q quit"))
+	lines = append(lines, "", m.footerFor(screenElevation))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -597,7 +658,7 @@ func (m Model) viewBrokenChocolatey() string {
 		lines = append(lines, "", errorStyle.Render(m.brokenError))
 	}
 
-	lines = append(lines, "", hotkeyBar("enter remove and reinstall", "b/esc back", "q quit"))
+	lines = append(lines, "", m.footerFor(screenBrokenChocolatey))
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
@@ -648,17 +709,15 @@ func (m Model) installSummaryTable(width, visibleRows int) []string {
 }
 
 func (m Model) installPlanLine() string {
-	alreadyInstalled := 0
+	alreadyInstalled := len(m.initialSkippedResults)
+	remaining := 0
 	for _, app := range m.installApps {
-		if m.appStatus[app.ID] == "skipped" {
-			alreadyInstalled++
+		switch m.appStatus[app.ID] {
+		case "", "pending", "installing", "skipping":
+			remaining++
 		}
 	}
-	willInstall := len(m.installApps) - alreadyInstalled
-	if willInstall < 0 {
-		willInstall = 0
-	}
-	return fmt.Sprintf("Selected: %d  Already installed: %d  Will install: %d", len(m.installApps), alreadyInstalled, willInstall)
+	return fmt.Sprintf("Selected: %d  Already installed: %d  Remaining: %d", len(m.installApps), alreadyInstalled, remaining)
 }
 
 func (m Model) installSummaryRange(visibleRows int) (int, int) {
@@ -719,7 +778,7 @@ func (m Model) installFailureLines(width int) []string {
 		shown++
 	}
 	if hidden > 0 {
-		lines = append(lines, mutedStyle.Render(fmt.Sprintf("  %d more failures. Press l to inspect full logs.", hidden)))
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("  %d more failures. Press l to view logs.", hidden)))
 	}
 	return lines
 }
@@ -1009,18 +1068,40 @@ func (s installStatus) RenderedCode() string {
 	return s.Style.Render(fmt.Sprintf("%-4s", s.Code))
 }
 
-func installLogLimit(height int) int {
-	if height <= 0 {
+func (m Model) installLogViewportHeight() int {
+	if m.height <= 0 {
 		return 12
 	}
-	limit := height - 18
-	if limit < 6 {
-		return 6
+	height := m.height - 8
+	if height < 1 {
+		return 1
 	}
-	if limit > 15 {
-		return 15
+	return height
+}
+
+func (m Model) installLogRange() (int, int) {
+	visibleRows := m.installLogViewportHeight()
+	start := m.logScroll
+	maxScroll := maxInt(0, len(m.installLogs)-visibleRows)
+	if start < 0 {
+		start = 0
 	}
-	return limit
+	if start > maxScroll {
+		start = maxScroll
+	}
+	end := start + visibleRows
+	if end > len(m.installLogs) {
+		end = len(m.installLogs)
+	}
+	return start, end
+}
+
+func formatInstallLogEntry(entry installLogEntry, width int) string {
+	line := sanitizeLogLine(entry.Line)
+	if entry.Application != "" {
+		line = "[" + entry.Application + "] " + line
+	}
+	return fitLine(line, width)
 }
 
 func bootstrapLogLimit(height int) int {
@@ -1055,6 +1136,7 @@ func formatElapsed(duration time.Duration) string {
 }
 
 func sanitizeLogLine(line string) string {
+	line = ansi.Strip(line)
 	line = strings.Map(func(r rune) rune {
 		if r == '\t' {
 			return ' '
@@ -1109,10 +1191,6 @@ func maxCatalogDetailsHeight(categories []catalog.Category) int {
 		height = maxInt(height, maxCatalogDetailsHeight(category.Categories))
 	}
 	return height
-}
-
-func hotkeyBar(parts ...string) string {
-	return hotkeyStyle.Render(strings.Join(parts, "  |  "))
 }
 
 func place(content string, width, height int) string {

@@ -24,6 +24,8 @@ const (
 	screenPresetPicker
 	screenReview
 	screenInstall
+	screenInstallLogs
+	screenHelp
 	screenBootstrap
 	screenElevation
 	screenBrokenChocolatey
@@ -39,8 +41,9 @@ const (
 type Model struct {
 	screen screen
 
-	width  int
-	height int
+	width    int
+	height   int
+	helpBack screen
 
 	categories      []catalog.Category
 	installed       map[string]InstalledStatus
@@ -68,16 +71,16 @@ type Model struct {
 	skipInstall            chan struct{}
 	cancelInstall          context.CancelFunc
 	installApps            []catalog.Application
-	installLog             []string
-	fullLog                []string
-	showFullLog            bool
+	installLogs            []installLogEntry
+	logScroll              int
+	logFollow              bool
 	results                []installer.Result
 	initialSkippedResults  []installer.Result
 	appStatus              map[string]string
 	appElapsed             map[string]time.Duration
 	currentApp             catalog.Application
 	currentStep            int
-	currentCmd             string
+	currentStatus          string
 	currentStart           time.Time
 	spinnerFrame           int
 	installDone            bool
@@ -94,6 +97,7 @@ type Model struct {
 	elevationRunning bool
 	elevationError   string
 	elevationArgs    []string
+	elevationBack    screen
 
 	brokenBack    screen
 	brokenRunning bool
@@ -103,6 +107,11 @@ type Model struct {
 type InstalledStatus struct {
 	Installed bool
 	Checked   bool
+}
+
+type installLogEntry struct {
+	Application string
+	Line        string
 }
 
 type installEventMsg struct {
@@ -177,6 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.clampReviewScroll()
 		m.clampInstallScroll()
+		m.clampLogScroll()
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -217,6 +227,10 @@ func (m Model) View() string {
 		return m.viewReview()
 	case screenInstall:
 		return m.viewInstall()
+	case screenInstallLogs:
+		return m.viewInstallLogs()
+	case screenHelp:
+		return m.viewHelp()
 	case screenBootstrap:
 		return m.viewBootstrap()
 	case screenElevation:
@@ -302,15 +316,41 @@ var russianKeyboardAliases = map[rune]string{
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch keyName(msg) {
-	case "ctrl+c", "q":
-		if m.screen == screenInstall && m.cancelInstall != nil {
+	key := keyName(msg)
+	operationScreen := m.screen
+	if operationScreen == screenHelp {
+		operationScreen = m.helpBack
+	}
+
+	if key == "ctrl+c" {
+		if (operationScreen == screenInstall || operationScreen == screenInstallLogs) && m.cancelInstall != nil {
 			m.cancelInstall()
 		}
-		if m.screen == screenBootstrap && m.cancelBootstrap != nil {
+		if operationScreen == screenBootstrap && m.cancelBootstrap != nil {
 			m.cancelBootstrap()
 		}
 		return m, tea.Quit
+	}
+	if m.screen == screenHelp {
+		if key == "esc" || key == "?" {
+			m.screen = m.helpBack
+			return m, tea.ClearScreen
+		}
+		if key == "q" && m.canQuitSafely() {
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+	if key == "?" {
+		m.helpBack = m.screen
+		m.screen = screenHelp
+		return m, tea.ClearScreen
+	}
+	if key == "q" {
+		if m.canQuitSafely() {
+			return m, tea.Quit
+		}
+		return m, nil
 	}
 
 	switch m.screen {
@@ -329,6 +369,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewKey(msg)
 	case screenInstall:
 		return m.handleInstallKey(msg)
+	case screenInstallLogs:
+		return m.handleInstallLogsKey(msg)
+	case screenHelp:
+		return m, nil
 	case screenBootstrap:
 		return m.handleBootstrapKey(msg)
 	case screenElevation:
@@ -338,6 +382,25 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) canQuitSafely() bool {
+	current := m.screen
+	if current == screenHelp {
+		current = m.helpBack
+	}
+	switch current {
+	case screenInstall, screenInstallLogs:
+		return m.installDone
+	case screenBootstrap:
+		return !m.bootstrapRunning
+	case screenElevation:
+		return !m.elevationRunning
+	case screenBrokenChocolatey:
+		return !m.brokenRunning
+	default:
+		return true
+	}
 }
 
 func (m Model) handleModeSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -363,6 +426,9 @@ func (m Model) handleModeSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.catalogPath = nil
 		m.notice = ""
 		m.screen = screenCatalog
+		return m, tea.ClearScreen
+	case "esc":
+		m.screen = screenWelcome
 		return m, tea.ClearScreen
 	}
 	return m, nil
@@ -414,13 +480,11 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch keyName(msg) {
-	case "tab":
-		return m, nil
 	case "up", "k":
 		m.moveCatalogCursor(-1)
 	case "down", "j":
 		m.moveCatalogCursor(1)
-	case "esc", "backspace", "h":
+	case "esc":
 		if m.catalogMode == catalogModeFull {
 			if m.hasSelectionSource() {
 				m.clearSelectionSource()
@@ -446,10 +510,13 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case " ":
 		m.toggleCurrentApp()
 	case "enter":
-		if m.catalogMode == catalogModeCategories {
+		if m.catalogMode == catalogModeCategories && m.catalogCursor < len(m.currentCategories()) {
 			m.openCurrentCategory()
 			return m, tea.ClearScreen
 		}
+		m.screen = screenReview
+		m.reviewScroll = 0
+		return m, tea.ClearScreen
 	case "i":
 		m.screen = screenReview
 		m.reviewScroll = 0
@@ -481,7 +548,7 @@ func (m Model) handlePresetPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.movePresetCursor(-1)
 	case "down", "j":
 		m.movePresetCursor(1)
-	case "esc", "backspace", "h":
+	case "esc":
 		m.screen = screenCatalog
 		return m, tea.ClearScreen
 	case "enter":
@@ -528,7 +595,7 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.notice = "Exporting profile..."
 		return m, exportProfileCmd(m.exportProfile, profiles.DefaultExportPath, profiles.FromPackages(profiles.DefaultProfileName, apps), collectModelPackages(m.categories))
-	case "b", "esc":
+	case "esc":
 		m.notice = ""
 		m.screen = screenCatalog
 		return m, tea.ClearScreen
@@ -551,6 +618,7 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.notice = ""
 				if !installer.IsElevated() {
 					m.screen = screenElevation
+					m.elevationBack = screenReview
 					m.elevationError = ""
 					m.elevationRunning = false
 					m.elevationArgs = m.selectedArgs()
@@ -567,6 +635,7 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if !installer.IsElevated() {
 			m.screen = screenElevation
+			m.elevationBack = screenReview
 			m.elevationError = ""
 			m.elevationRunning = false
 			m.elevationArgs = m.selectedArgs()
@@ -660,7 +729,7 @@ func (m Model) reviewVisibleRows() int {
 
 func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch keyName(msg) {
-	case "b", "esc":
+	case "esc":
 		if m.cancelBootstrap != nil {
 			m.cancelBootstrap()
 		}
@@ -684,6 +753,7 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if !installer.IsElevated() {
 			m.screen = screenElevation
+			m.elevationBack = screenBootstrap
 			m.elevationError = ""
 			m.elevationRunning = false
 			m.elevationArgs = m.selectedArgs()
@@ -711,7 +781,7 @@ func (m Model) handleBootstrapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleBrokenChocolateyKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch keyName(msg) {
-	case "b", "esc":
+	case "esc":
 		m.brokenRunning = false
 		m.brokenError = ""
 		m.screen = m.brokenBack
@@ -722,6 +792,7 @@ func (m Model) handleBrokenChocolateyKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if !installer.IsElevated() {
 			m.screen = screenElevation
+			m.elevationBack = screenBrokenChocolatey
 			m.elevationRunning = false
 			m.elevationError = ""
 			m.elevationArgs = m.selectedArgs()
@@ -737,6 +808,13 @@ func (m Model) handleBrokenChocolateyKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleElevationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch keyName(msg) {
+	case "esc":
+		if m.elevationRunning {
+			return m, nil
+		}
+		m.elevationError = ""
+		m.screen = m.elevationBack
+		return m, tea.ClearScreen
 	case "enter":
 		if m.elevationRunning {
 			return m, nil
@@ -758,38 +836,37 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 	event := msg.event
 	switch event.Kind {
 	case installer.EventLog:
-		m.fullLog = append(m.fullLog, event.Line)
-		if isImportantInstallLine(event.Line) {
-			m.installLog = append(m.installLog, event.Line)
+		m.appendInstallLog(event.App, event.Line)
+		if status, ok := installStatusFromLog(event.Line); ok {
+			m.currentStatus = status
 		}
 	case installer.EventAppStarted:
 		m.currentApp = event.App
-		m.currentCmd = event.Line
+		m.currentStatus = "Starting installation..."
 		m.currentStep = m.installIndex(event.App) + 1
 		m.currentStart = time.Now()
 		m.appStatus[event.App.ID] = "installing"
-		m.installLog = append(m.installLog, "installing "+event.App.Name)
-		m.fullLog = append(m.fullLog, "> "+event.Line)
+		m.appendInstallLog(event.App, "> "+event.Line)
 	case installer.EventAppFinished:
 		if !m.currentStart.IsZero() && m.currentApp.ID == event.App.ID {
 			m.appElapsed[event.App.ID] = time.Since(m.currentStart)
 		}
 		if event.Success {
 			m.appStatus[event.App.ID] = "installed"
-			m.installLog = append(m.installLog, "success "+event.App.Name)
-			m.fullLog = append(m.fullLog, "ok: "+event.App.Name)
+			m.currentStatus = "Installed successfully."
+			m.appendInstallLog(event.App, "installation completed successfully")
 		} else if event.Err == installer.ErrInstallSkipped {
 			m.appStatus[event.App.ID] = "skipped"
-			m.installLog = append(m.installLog, "skipped "+event.App.Name)
-			m.fullLog = append(m.fullLog, "skipped: "+event.App.Name)
+			m.currentStatus = "Skipped."
+			m.appendInstallLog(event.App, "installation skipped")
 		} else if event.Err == context.DeadlineExceeded {
 			m.appStatus[event.App.ID] = "failed"
-			m.installLog = append(m.installLog, "timed out "+event.App.Name)
-			m.fullLog = append(m.fullLog, "timed out: "+event.App.Name)
+			m.currentStatus = "Installation timed out."
+			m.appendInstallLog(event.App, "installation timed out")
 		} else {
 			m.appStatus[event.App.ID] = "failed"
-			m.installLog = append(m.installLog, "failed "+event.App.Name+" - "+event.Err.Error())
-			m.fullLog = append(m.fullLog, "failed: "+event.App.Name+" - "+event.Err.Error())
+			m.currentStatus = "Installation failed."
+			m.appendInstallLog(event.App, "installation failed: "+event.Err.Error())
 		}
 	case installer.EventSummary:
 		if !m.currentStart.IsZero() && m.currentApp.ID != "" {
@@ -799,6 +876,7 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		}
 		m.results = append(append([]installer.Result{}, m.initialSkippedResults...), event.Results...)
 		m.installDone = true
+		m.currentStatus = "Installation complete."
 		if !m.installStatusRefreshed {
 			m.RefreshInstalledStatus()
 			m.installStatusRefreshed = true
@@ -904,19 +982,47 @@ func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "end":
 		m.installScroll = maxInt(0, len(m.installApps)-m.installSummaryVisibleRows(0))
 	case "l":
-		m.showFullLog = !m.showFullLog
-		m.clampInstallScroll()
+		m.screen = screenInstallLogs
+		m.clampLogScroll()
 		return m, tea.ClearScreen
+	case "esc":
+		if m.installDone {
+			m.screen = screenCatalog
+			return m, tea.ClearScreen
+		}
 	case "s":
 		if !m.installDone && m.skipInstall != nil && m.currentApp.ID != "" {
-			m.installLog = append(m.installLog, "skipping "+m.currentApp.Name+"...")
-			m.fullLog = append(m.fullLog, "skip requested for "+m.currentApp.Name)
+			m.currentStatus = "Skipping current application..."
+			m.appendInstallLog(m.currentApp, "skip requested")
 			m.appStatus[m.currentApp.ID] = "skipping"
 			select {
 			case m.skipInstall <- struct{}{}:
 			default:
 			}
 		}
+	}
+	return m, nil
+}
+
+func (m Model) handleInstallLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch keyName(msg) {
+	case "up", "k":
+		m.moveLogScroll(-1)
+	case "down", "j":
+		m.moveLogScroll(1)
+	case "pgup":
+		m.moveLogScroll(-m.installLogViewportHeight())
+	case "pgdown":
+		m.moveLogScroll(m.installLogViewportHeight())
+	case "home":
+		m.logScroll = 0
+		m.logFollow = false
+	case "end":
+		m.logScroll = m.maxLogScroll()
+		m.logFollow = true
+	case "esc", "l":
+		m.screen = screenInstall
+		return m, tea.ClearScreen
 	}
 	return m, nil
 }
@@ -940,19 +1046,55 @@ func (m *Model) clampInstallScroll() {
 	}
 }
 
+func (m *Model) appendInstallLog(app catalog.Application, line string) {
+	m.installLogs = append(m.installLogs, installLogEntry{
+		Application: app.Name,
+		Line:        line,
+	})
+	if m.logFollow {
+		m.logScroll = m.maxLogScroll()
+		return
+	}
+	m.clampLogScroll()
+}
+
+func (m *Model) moveLogScroll(delta int) {
+	m.logFollow = false
+	m.logScroll += delta
+	m.clampLogScroll()
+	m.logFollow = m.logScroll == m.maxLogScroll()
+}
+
+func (m *Model) clampLogScroll() {
+	if m.logFollow {
+		m.logScroll = m.maxLogScroll()
+		return
+	}
+	if m.logScroll < 0 {
+		m.logScroll = 0
+	}
+	if maxScroll := m.maxLogScroll(); m.logScroll > maxScroll {
+		m.logScroll = maxScroll
+	}
+}
+
+func (m Model) maxLogScroll() int {
+	return maxInt(0, len(m.installLogs)-m.installLogViewportHeight())
+}
+
 func (m Model) handleInstallTick() (tea.Model, tea.Cmd) {
-	if m.screen != screenInstall || m.installDone {
+	installVisible := m.screen == screenInstall || m.screen == screenInstallLogs ||
+		(m.screen == screenHelp && (m.helpBack == screenInstall || m.helpBack == screenInstallLogs))
+	if !installVisible || m.installDone {
 		return m, nil
 	}
 	m.spinnerFrame++
-	if m.showFullLog {
-		return m, tea.Batch(tea.ClearScreen, installTickCmd())
-	}
 	return m, installTickCmd()
 }
 
 func (m Model) handleSearchCursorTick() (tea.Model, tea.Cmd) {
-	if m.screen != screenCatalog || !m.searchFocused {
+	catalogVisible := m.screen == screenCatalog || (m.screen == screenHelp && m.helpBack == screenCatalog)
+	if !catalogVisible || !m.searchFocused {
 		return m, nil
 	}
 	m.searchCursor = !m.searchCursor
@@ -962,9 +1104,9 @@ func (m Model) handleSearchCursorTick() (tea.Model, tea.Cmd) {
 func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 	m.screen = screenInstall
 	m.installApps = apps
-	m.installLog = nil
-	m.fullLog = nil
-	m.showFullLog = false
+	m.installLogs = nil
+	m.logScroll = 0
+	m.logFollow = true
 	m.results = nil
 	m.initialSkippedResults = nil
 	m.appStatus = make(map[string]string, len(apps))
@@ -978,8 +1120,7 @@ func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 				Skipped: true,
 				Err:     installer.ErrInstallSkipped,
 			})
-			m.installLog = append(m.installLog, "skipped "+app.Name+" (already installed)")
-			m.fullLog = append(m.fullLog, "skipped already installed: "+app.Name)
+			m.appendInstallLog(app, "skipped: already installed")
 			continue
 		}
 		m.appStatus[app.ID] = "pending"
@@ -987,7 +1128,7 @@ func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 	}
 	m.currentApp = catalog.Application{}
 	m.currentStep = 0
-	m.currentCmd = ""
+	m.currentStatus = "Preparing installation..."
 	m.currentStart = time.Time{}
 	m.installScroll = 0
 	m.spinnerFrame = 0
@@ -1000,9 +1141,8 @@ func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 		m.installDone = true
 		m.installStatusRefreshed = true
 		m.skipInstall = nil
-		m.currentCmd = "already installed packages skipped."
-		m.installLog = append(m.installLog, "all selected packages are already installed")
-		m.fullLog = append(m.fullLog, "all selected packages were skipped because they are already installed")
+		m.currentStatus = "All selected applications are already installed."
+		m.appendInstallLog(catalog.Application{}, "all selected applications were skipped because they are already installed")
 		return m, tea.ClearScreen
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1536,23 +1676,40 @@ func searchCursorTickCmd() tea.Cmd {
 	})
 }
 
-func isImportantInstallLine(line string) bool {
+func installStatusFromLog(line string) (string, bool) {
 	text := strings.ToLower(line)
-	needles := []string{
-		"download",
-		"installing",
-		"installed",
-		"success",
-		"successful",
-		"complete",
-		"failed",
-		"failure",
-		"error",
-	}
-	for _, needle := range needles {
-		if strings.Contains(text, needle) {
-			return true
+	switch {
+	case strings.Contains(text, "download"):
+		status := "Downloading..."
+		if percent := logProgressPercent(line); percent != "" {
+			status += " " + percent
 		}
+		return status, true
+	case strings.Contains(text, "starting installer"), strings.Contains(text, "installing"):
+		return "Installing...", true
+	case strings.Contains(text, "detected"), strings.Contains(text, "verifying"):
+		return "Verifying installation...", true
+	case strings.Contains(text, "success"), strings.Contains(text, "complete"), strings.Contains(text, "installed"):
+		return "Finishing installation...", true
+	case strings.Contains(text, "failed"), strings.Contains(text, "failure"), strings.Contains(text, "error"):
+		return "Provider reported an error.", true
+	default:
+		return "", false
 	}
-	return false
+}
+
+func logProgressPercent(line string) string {
+	percentIndex := strings.IndexRune(line, '%')
+	if percentIndex < 1 {
+		return ""
+	}
+	start := percentIndex - 1
+	for start >= 0 && line[start] >= '0' && line[start] <= '9' {
+		start--
+	}
+	start++
+	if start == percentIndex {
+		return ""
+	}
+	return line[start : percentIndex+1]
 }
