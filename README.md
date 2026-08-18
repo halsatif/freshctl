@@ -1,7 +1,15 @@
-<h1 align="center">
-  <img src="./site/favicon.png" width="35">
-  freshctl
-</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo/freshctl-fc-white-border.png">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/logo/freshctl-fc-black-border.png">
+    <img src="./assets/logo/freshctl-fc-black-border.png" width="88" alt="freshctl icon" align="middle">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo/freshctl-wordmark-transparent-light.png">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/logo/freshctl-wordmark-transparent-dark.png">
+    <img src="./assets/logo/freshctl-wordmark-transparent-dark.png" width="280" alt="freshctl" align="middle">
+  </picture>
+</p>
 
 <p align="center">
 	<span style="font-size: 30px; font-weight: 300;">
