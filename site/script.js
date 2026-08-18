@@ -2,6 +2,43 @@ const rawCatalog = (window.FRESHCTL_CATALOG || []).map((pkg) => ({ ...pkg, id: p
 const packageCatalog = [...rawCatalog].sort((left, right) =>
   left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
 );
+const translations = window.FRESHCTL_I18N || {};
+const russianCatalog = window.FRESHCTL_RU_CATALOG || { categories: {}, types: {}, descriptions: {} };
+
+function getInitialLanguage() {
+  try {
+    const saved = window.localStorage.getItem("freshctl-language");
+    if (saved === "en" || saved === "ru") return saved;
+  } catch {
+    // The browser may block local storage in private or restricted contexts.
+  }
+  return navigator.language?.toLowerCase().startsWith("ru") ? "ru" : "en";
+}
+
+let currentLanguage = getInitialLanguage();
+
+function translate(key, values = {}) {
+  const template = translations[currentLanguage]?.[key] ?? translations.en?.[key] ?? key;
+  return Object.entries(values).reduce(
+    (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
+    template,
+  );
+}
+
+function localizedDescription(pkg) {
+  if (currentLanguage === "ru") return russianCatalog.descriptions?.[pkg.packageId] || pkg.description;
+  return pkg.description;
+}
+
+function localizedCategory(pkg) {
+  if (currentLanguage === "ru") return russianCatalog.categories?.[pkg.category] || pkg.category;
+  return pkg.category;
+}
+
+function localizedType(pkg) {
+  if (currentLanguage === "ru") return russianCatalog.types?.[pkg.type] || pkg.type;
+  return pkg.type;
+}
 
 const copyButtons = document.querySelectorAll("[data-copy]");
 const packageModal = document.querySelector("#package-modal");
@@ -20,8 +57,40 @@ const profileOutput = document.querySelector("#profile-json-output");
 const profileHint = document.querySelector("#profile-hint");
 const profileCopy = document.querySelector("#profile-copy");
 const profileDownload = document.querySelector("#profile-download");
+const languageButtons = document.querySelectorAll("[data-language]");
 let installSpotlightTimer;
 const selectedProfilePackages = new Set();
+
+function applyLanguage(language, persist = false) {
+  currentLanguage = language === "ru" ? "ru" : "en";
+  document.documentElement.lang = currentLanguage;
+  document.title = translate("meta.title");
+  document.querySelector('meta[name="description"]')?.setAttribute("content", translate("meta.description"));
+
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = translate(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+    element.setAttribute("placeholder", translate(element.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", translate(element.dataset.i18nAriaLabel));
+  });
+  languageButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.language === currentLanguage));
+  });
+
+  if (persist) {
+    try {
+      window.localStorage.setItem("freshctl-language", currentLanguage);
+    } catch {
+      // Language switching still works when local storage is unavailable.
+    }
+  }
+
+  renderPackages();
+  renderProfileGenerator();
+}
 
 copyButtons.forEach((button) => {
   button.addEventListener("click", async () => {
@@ -30,18 +99,17 @@ copyButtons.forEach((button) => {
 
     try {
       await navigator.clipboard.writeText(text);
-      const previous = button.textContent;
-      button.textContent = "Copied";
+      button.textContent = translate("common.copied");
       button.classList.add("copied");
 
       window.setTimeout(() => {
-        button.textContent = previous;
+        button.textContent = translate(button.dataset.i18n || "common.copy");
         button.classList.remove("copied");
       }, 1400);
     } catch {
-      button.textContent = "Copy failed";
+      button.textContent = translate("common.copyFailed");
       window.setTimeout(() => {
-        button.textContent = "Copy";
+        button.textContent = translate(button.dataset.i18n || "common.copy");
       }, 1400);
     }
   });
@@ -52,14 +120,14 @@ function renderPackages() {
 
   const query = packageSearch.value.trim().toLowerCase();
   const visible = packageCatalog.filter((pkg) => {
-    const haystack = `${pkg.name} ${pkg.packageId} ${pkg.description} ${pkg.category} ${pkg.type}`.toLowerCase();
+    const haystack = `${pkg.name} ${pkg.packageId} ${localizedDescription(pkg)} ${localizedCategory(pkg)} ${localizedType(pkg)}`.toLowerCase();
     return haystack.includes(query);
   });
 
-  packageCount.textContent = `${visible.length} of ${packageCatalog.length} packages`;
+  packageCount.textContent = translate("catalog.count", { shown: visible.length, total: packageCatalog.length });
 
   if (visible.length === 0) {
-    packageList.innerHTML = '<div class="package-empty">No packages found.</div>';
+    packageList.innerHTML = `<div class="package-empty">${escapeHtml(translate("catalog.empty"))}</div>`;
     return;
   }
 
@@ -84,18 +152,18 @@ function renderProfileGenerator() {
   const profile = buildProfile();
   const hasSelection = profile.packages.length > 0;
 
-  profileCount.textContent = `${selectedCount} selected • ${visible.length} shown`;
+  profileCount.textContent = translate("profile.count", { selected: selectedCount, shown: visible.length });
   profileOutput.textContent = hasSelection ? JSON.stringify(profile, null, 2) : "";
   if (profileHint) {
     profileHint.textContent = hasSelection
-      ? "Save this file as freshctl-profile.json and import it with o in freshctl."
-      : "Select packages to generate a profile.";
+      ? translate("profile.readyHint")
+      : translate("profile.emptyHint");
   }
   if (profileCopy) profileCopy.disabled = !hasSelection;
   if (profileDownload) profileDownload.disabled = !hasSelection;
 
   if (visible.length === 0) {
-    profilePackageList.innerHTML = '<div class="package-empty">No packages found.</div>';
+    profilePackageList.innerHTML = `<div class="package-empty">${escapeHtml(translate("catalog.empty"))}</div>`;
     return;
   }
 
@@ -106,9 +174,9 @@ function renderProfileGenerator() {
         <button class="profile-package-row${selected ? " selected" : ""}" type="button" data-profile-package="${escapeHtml(pkg.packageId)}">
           <span>
             <strong>${escapeHtml(pkg.name)}</strong>
-            <small>${escapeHtml(pkg.description || pkg.packageId)}</small>
+            <small>${escapeHtml(localizedDescription(pkg) || pkg.packageId)}</small>
           </span>
-          <code>${selected ? "selected" : pkg.packageId}</code>
+          <code>${selected ? escapeHtml(translate("profile.selected")) : pkg.packageId}</code>
         </button>
       `;
     })
@@ -117,30 +185,29 @@ function renderProfileGenerator() {
 
 function matchesProfileQuery(pkg, query) {
   if (!query) return true;
-  const haystack = `${pkg.name} ${pkg.packageId} ${pkg.description || ""}`.toLowerCase();
+  const haystack = `${pkg.name} ${pkg.packageId} ${localizedDescription(pkg) || ""} ${localizedCategory(pkg)}`.toLowerCase();
   return haystack.includes(query);
 }
 
 function buildProfile() {
   return {
     version: 1,
-    name: "freshctl profile",
+    name: translate("profile.defaultName"),
     packages: rawCatalog.filter((pkg) => selectedProfilePackages.has(pkg.packageId)).map((pkg) => pkg.packageId),
   };
 }
 
 async function copyProfileJson() {
   if (selectedProfilePackages.size === 0 || !profileCopy) return;
-  const previous = profileCopy.textContent;
   try {
     await navigator.clipboard.writeText(JSON.stringify(buildProfile(), null, 2));
-    profileCopy.textContent = "Copied";
+    profileCopy.textContent = translate("common.copied");
     profileCopy.classList.add("copied");
   } catch {
-    profileCopy.textContent = "Copy failed";
+    profileCopy.textContent = translate("common.copyFailed");
   }
   window.setTimeout(() => {
-    profileCopy.textContent = previous;
+    profileCopy.textContent = translate("profile.copyJson");
     profileCopy.classList.remove("copied");
   }, 1400);
 }
@@ -231,9 +298,12 @@ profilePackageList?.addEventListener("click", (event) => {
 });
 profileCopy?.addEventListener("click", copyProfileJson);
 profileDownload?.addEventListener("click", downloadProfileJson);
+languageButtons.forEach((button) => {
+  button.addEventListener("click", () => applyLanguage(button.dataset.language, true));
+});
 installSpotlightLink?.addEventListener("click", openInstallSpotlight);
 installSpotlight?.addEventListener("click", closeInstallSpotlight);
-renderProfileGenerator();
+applyLanguage(currentLanguage);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && packageModal?.classList.contains("open")) {
