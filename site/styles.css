@@ -233,10 +233,35 @@ h3 {
 }
 
 .actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 12px;
   margin-top: 22px;
+}
+
+.action-buttons,
+.action-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.action-buttons {
+  gap: 12px;
+}
+
+.action-links {
+  gap: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.action-links a {
+  border-bottom: 1px solid transparent;
+}
+
+.action-links a:hover {
+  color: var(--text);
+  border-bottom-color: var(--line);
 }
 
 .button {
@@ -819,8 +844,9 @@ pre code {
     width: 100%;
   }
 
-  .actions {
+  .action-buttons {
     flex-direction: column;
+    width: 100%;
   }
 
   .button {
