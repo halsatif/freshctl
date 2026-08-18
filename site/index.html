@@ -11,170 +11,150 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=8" />
     <link rel="icon" href="favicon.png" type="image/png" sizes="512x512" />
     <link rel="apple-touch-icon" href="favicon.png" />
   </head>
   <body>
     <header class="site-header">
-      <nav class="container nav" aria-label="Primary navigation">
-        <a class="brand" href="#top" aria-label="freshctl home">
+      <nav class="container nav" aria-label="Primary navigation" data-i18n-aria-label="nav.ariaLabel">
+        <a class="brand" href="#top" aria-label="freshctl home" data-i18n-aria-label="brand.ariaLabel">
           <img src="assets/freshctl-wordmark.png" alt="freshctl" width="1600" height="480" />
         </a>
         <div class="nav-links">
-          <a href="#packages" data-open-packages>Packages</a>
-          <a href="#profile">Profile</a>
-          <a href="#install" data-spotlight-install>Install</a>
-          <a href="https://github.com/halsatif/freshctl">GitHub</a>
+          <a href="#packages" data-open-packages data-i18n="nav.packages">Packages</a>
+          <a href="#profile" data-i18n="nav.profile">Profile</a>
+          <a href="#install" data-spotlight-install data-i18n="nav.install">Install</a>
+        </div>
+        <div class="language-switch" role="group" aria-label="Language / Язык">
+          <button type="button" data-language="en" aria-pressed="true">EN</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" data-language="ru" aria-pressed="false">RU</button>
         </div>
       </nav>
     </header>
 
     <main id="top">
       <section class="hero section">
-        <div class="container hero-grid">
+        <div class="container hero-layout">
           <div class="hero-copy">
-            <p class="eyebrow">windows bootstrap utility</p>
-            <h1>freshctl</h1>
-            <p class="lead">Choose your apps and set up a fresh Windows installation without visiting dozens of websites.</p>
+            <p class="eyebrow" data-i18n="hero.eyebrow">open-source windows setup</p>
+            <h1 data-i18n="hero.title">Set up Windows without the busywork.</h1>
+            <p class="lead" data-i18n="hero.lead">Choose the apps you need. freshctl installs them quietly and keeps the process clear.</p>
+
+            <div class="hero-actions" aria-label="Project links" data-i18n-aria-label="actions.ariaLabel">
+              <a class="button primary" href="https://github.com/halsatif/freshctl/releases/latest" data-i18n="actions.download">Download for Windows</a>
+              <a class="quiet-link" href="https://github.com/halsatif/freshctl">GitHub</a>
+            </div>
 
             <div class="command-card" id="install" data-install-card>
-              <div class="command-label">install</div>
               <div class="command-row">
                 <code>irm https://freshctl.tech/install.ps1 | iex</code>
-                <button class="copy-button" type="button" data-copy="irm https://freshctl.tech/install.ps1 | iex">
+                <button class="copy-button command-copy" type="button" data-copy="irm https://freshctl.tech/install.ps1 | iex" data-i18n="common.copy">
                   Copy
                 </button>
               </div>
             </div>
 
-            <div class="actions" aria-label="Project links">
-              <div class="action-buttons">
-                <a class="button primary" href="https://github.com/halsatif/freshctl/releases/latest">Download for Windows</a>
-                <a class="button" href="#profile">Create Profile</a>
-              </div>
-              <div class="action-links">
-                <a href="#packages" data-open-packages>View Packages</a>
-                <a href="https://github.com/halsatif/freshctl">GitHub</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="terminal-mockup" aria-label="freshctl terminal interface preview">
-            <div class="terminal-titlebar">
-              <span>freshctl.exe</span>
-              <span class="terminal-dots" aria-hidden="true">
-                <i></i><i></i><i></i>
+            <div class="trust-row" aria-label="Project qualities" data-i18n-aria-label="trust.ariaLabel">
+              <span class="trust-item">
+                <img class="trust-icon" src="assets/trust-github.svg" alt="" width="18" height="18" />
+                <span data-i18n="trust.openSource">Open source</span>
+              </span>
+              <span class="trust-item">
+                <img class="trust-icon" src="assets/trust-windows.svg" alt="" width="18" height="18" />
+                <span data-i18n="trust.windows">Windows 10/11</span>
+              </span>
+              <span class="trust-item">
+                <img class="trust-icon" src="assets/trust-no-account.svg" alt="" width="18" height="18" />
+                <span data-i18n="trust.noAccount">No account</span>
               </span>
             </div>
-            <pre><code>freshctl
-0 selected
-Mode: Full catalog
-
-+----------------------------+  +-------------------------+
-| &gt; [ ] 7-Zip                |  | Package:                |
-|   [ ] Bitwarden            |  | 7zip                    |
-|   [ ] Brave Browser        |  |                         |
-|   [ ] Discord              |  | Manager:                |
-|   [ ] VLC                  |  | Chocolatey              |
-|   [ ] Git                  |  |                         |
-|   [ ] Google Chrome        |  | Description:            |
-|   [ ] Node.js LTS          |  | File archiver with      |
-|   [ ] PowerShell 7         |  | broad format support.   |
-+----------------------------+  +-------------------------+
-
- up/down | / search | space select | i install</code></pre>
           </div>
-        </div>
-      </section>
 
-      <section class="section screenshot-section" aria-labelledby="screenshot-title">
-        <div class="container">
-          <div class="section-heading">
-            <p class="eyebrow">terminal native</p>
-            <h2 id="screenshot-title">Browse, select, install.</h2>
-          </div>
-          <div class="wide-terminal" role="img" aria-label="Mockup of freshctl category browser">
+          <div class="product-terminal" role="img" aria-label="Mockup of freshctl package catalog" data-i18n-aria-label="terminal.catalogLabel">
             <div class="terminal-titlebar">
               <span>Administrator: freshctl.exe</span>
-              <span class="terminal-dots" aria-hidden="true">
-                <i></i><i></i><i></i>
-              </span>
+              <span class="window-controls" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
-            <pre><code>freshctl
-3 selected
-Path: Development &gt; Runtimes
+            <div class="tui-body">
+              <div class="tui-heading">
+                <strong>freshctl</strong>
+                <span>4 selected</span>
+                <span>Mode: Full catalog</span>
+              </div>
 
-+------------------------------+  +------------------------------+
-| &gt; .NET &gt;                     |  | .NET                         |
-|   Java &gt;                     |  |                              |
-|   Node.js &gt;                  |  | .NET runtimes and SDKs       |
-|   Python &gt;                   |  | for building and running     |
-|   Toolchains &gt;               |  | applications.                |
-|   VC++ Redistributables &gt;    |  |                              |
-|                              |  | Contains:                    |
-|                              |  | - .NET Runtime 10            |
-|                              |  | - .NET SDK 10                |
-+------------------------------+  +------------------------------+
+              <div class="tui-panes">
+                <div class="tui-panel tui-list">
+                  <div class="tui-row"><span>&nbsp;&nbsp;[ ] Google Chrome</span><small>OK</small></div>
+                  <div class="tui-row"><span>&nbsp;&nbsp;[ ] Mozilla Firefox</span><small>--</small></div>
+                  <div class="tui-row selected"><span>&gt; [x] Visual Studio Code</span><small>--</small></div>
+                  <div class="tui-row"><span>&nbsp;&nbsp;[ ] 7-Zip</span></div>
+                  <div class="tui-row"><span>&nbsp;&nbsp;[ ] Discord</span><small>OK</small></div>
+                  <div class="tui-row"><span>&nbsp;&nbsp;[ ] VLC</span></div>
+                </div>
 
- up/down | enter open | space select | esc back | i install</code></pre>
+                <div class="tui-panel tui-details">
+                  <p>Package:<br /><strong>Visual Studio Code</strong></p>
+                  <p>ID:<br /><strong>vscode</strong></p>
+                  <p>Type: Application<br />Manager: Direct<br />Verified: Yes<br />Installed: No</p>
+                  <p>Description:<br />Code editor for building and debugging applications.</p>
+                  <p>Selected: Yes</p>
+                </div>
+              </div>
+
+              <div class="tui-footer">
+                <span><b>↑↓</b> move</span><i>•</i>
+                <span><b>space</b> select</span><i>•</i>
+                <span><b>/</b> search</span><i>•</i>
+                <span><b>enter</b> review</span><i>•</i>
+                <span><b>esc</b> back</span><i>•</i>
+                <span><b>?</b> help</span>
+              </div>
+            </div>
           </div>
+
+          <ol class="setup-steps" aria-label="How freshctl works" data-i18n-aria-label="steps.ariaLabel">
+            <li><span>1</span><div><strong data-i18n="steps.choose.title">Choose</strong><small data-i18n="steps.choose.description">Pick the apps you want.</small></div></li>
+            <li><span>2</span><div><strong data-i18n="steps.review.title">Review</strong><small data-i18n="steps.review.description">Check what will be installed.</small></div></li>
+            <li><span>3</span><div><strong data-i18n="steps.install.title">Install</strong><small data-i18n="steps.install.description">freshctl handles the rest.</small></div></li>
+          </ol>
         </div>
       </section>
 
       <section class="section" id="packages" aria-labelledby="features-title">
         <div class="container">
           <div class="section-heading">
-            <p class="eyebrow">what it does</p>
-            <h2 id="features-title">Small surface area. Useful defaults.</h2>
+            <h2 id="features-title" data-i18n="features.title">Features</h2>
           </div>
 
           <div class="feature-grid">
             <div class="feature">
-              <h3>category browser</h3>
-              <p>Move through grouped packages with a file-manager style catalog.</p>
+              <h3 data-i18n="features.category.title">category browser</h3>
+              <p data-i18n="features.category.description">Move through grouped packages with a file-manager style catalog.</p>
             </div>
             <div class="feature">
-              <h3>full catalog search</h3>
-              <p>Search every package by name, id, description, or path.</p>
+              <h3 data-i18n="features.search.title">full catalog search</h3>
+              <p data-i18n="features.search.description">Search every package by name, id, description, or path.</p>
             </div>
             <div class="feature">
-              <h3>chocolatey bootstrap</h3>
-              <p>Checks for Chocolatey and can bootstrap it before installing apps.</p>
+              <h3 data-i18n="features.bootstrap.title">chocolatey bootstrap</h3>
+              <p data-i18n="features.bootstrap.description">Checks for Chocolatey and can bootstrap it before installing apps.</p>
             </div>
             <div class="feature">
-              <h3>package selection</h3>
-              <p>Select packages first, review exact commands, then install.</p>
+              <h3 data-i18n="features.selection.title">package selection</h3>
+              <p data-i18n="features.selection.description">Select packages first, review exact commands, then install.</p>
             </div>
             <div class="feature">
-              <h3>fresh windows setup</h3>
-              <p>Useful for clean Windows installs where the same tools come back every time.</p>
+              <h3 data-i18n="features.setup.title">fresh windows setup</h3>
+              <p data-i18n="features.setup.description">Useful for clean Windows installs where the same tools come back every time.</p>
             </div>
             <div class="feature">
-              <h3>terminal-native interface</h3>
-              <p>No account, no dashboard, no background service. Just a TUI.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section commands" aria-labelledby="commands-title">
-        <div class="container">
-          <div class="section-heading">
-            <p class="eyebrow">install</p>
-            <h2 id="commands-title">Run it from PowerShell.</h2>
-          </div>
-
-          <div class="code-block">
-            <div class="code-label">powershell</div>
-            <div class="command-row">
-              <code>irm https://freshctl.tech/install.ps1 | iex</code>
-              <button class="copy-button" type="button" data-copy="irm https://freshctl.tech/install.ps1 | iex">
-                Copy
-              </button>
+              <h3 data-i18n="features.terminal.title">terminal-native interface</h3>
+              <p data-i18n="features.terminal.description">No account, no dashboard, no background service. Just a TUI.</p>
             </div>
           </div>
         </div>
@@ -183,19 +163,20 @@ Path: Development &gt; Runtimes
       <section class="section profile-section" id="profile" aria-labelledby="profile-title">
         <div class="container">
           <div class="section-heading">
-            <p class="eyebrow">profiles</p>
-            <h2 id="profile-title">Build a reusable setup file.</h2>
+            <h2 id="profile-title" data-i18n="profile.title">Profiles</h2>
             <p>
-              Select packages, download <code>freshctl-profile.json</code>, then open freshctl and press
-              <code>o</code> to import it.
+              <span data-i18n="profile.instructionsStart">Select packages, download</span>
+              <code>freshctl-profile.json</code>,
+              <span data-i18n="profile.instructionsEnd">then open freshctl and press</span>
+              <code>o</code> <span data-i18n="profile.instructionsImport">to import it.</span>
             </p>
           </div>
 
           <div class="profile-generator">
             <div class="profile-browser">
               <label class="profile-search">
-                <span>search catalog</span>
-                <input id="profile-search" type="search" autocomplete="off" placeholder="name, id, or description" />
+                <span data-i18n="profile.searchLabel">search catalog</span>
+                <input id="profile-search" type="search" autocomplete="off" placeholder="name, id, or description" data-i18n-placeholder="profile.searchPlaceholder" />
               </label>
               <p class="profile-count" id="profile-count">0 selected</p>
               <div class="profile-package-list" id="profile-package-list"></div>
@@ -204,15 +185,15 @@ Path: Development &gt; Runtimes
             <div class="profile-output">
               <div class="profile-output-header">
                 <div>
-                  <p class="eyebrow">output</p>
+                  <p class="eyebrow" data-i18n="profile.output">output</p>
                   <h3>freshctl-profile.json</h3>
                 </div>
                 <div class="profile-actions">
-                  <button class="copy-button" type="button" id="profile-copy" disabled>Copy JSON</button>
-                  <button class="copy-button" type="button" id="profile-download" disabled>Download</button>
+                  <button class="copy-button" type="button" id="profile-copy" disabled data-i18n="profile.copyJson">Copy JSON</button>
+                  <button class="copy-button" type="button" id="profile-download" disabled data-i18n="common.download">Download</button>
                 </div>
               </div>
-              <p class="profile-hint" id="profile-hint">Select packages to generate a profile.</p>
+              <p class="profile-hint" id="profile-hint" data-i18n="profile.emptyHint">Select packages to generate a profile.</p>
               <pre class="profile-json"><code id="profile-json-output"></code></pre>
             </div>
           </div>
@@ -222,9 +203,9 @@ Path: Development &gt; Runtimes
 
     <footer class="footer">
       <div class="container footer-inner">
-        <a href="https://github.com/halsatif/freshctl">github</a>
+        <a href="https://github.com/halsatif/freshctl">GitHub</a>
         <span>freshctl.tech</span>
-        <span>windows-only for now</span>
+        <span data-i18n="footer.windowsOnly">windows-only for now</span>
       </div>
     </footer>
 
@@ -235,27 +216,28 @@ Path: Development &gt; Runtimes
       <section class="package-dialog" role="dialog" aria-modal="true" aria-labelledby="package-dialog-title">
         <div class="package-dialog-header">
           <div>
-            <p class="eyebrow">catalog</p>
-            <h2 id="package-dialog-title">packages</h2>
+            <p class="eyebrow" data-i18n="catalog.eyebrow">catalog</p>
+            <h2 id="package-dialog-title" data-i18n="catalog.title">packages</h2>
           </div>
-          <button class="modal-close" type="button" data-close-packages>Close</button>
+          <button class="modal-close" type="button" data-close-packages data-i18n="common.close">Close</button>
         </div>
         <label class="package-search">
-			<span>search packages</span>
-			<input id="package-search" type="search" autocomplete="off" placeholder="name or chocolatey id" />
-		</label>
+          <span data-i18n="catalog.searchLabel">search packages</span>
+          <input id="package-search" type="search" autocomplete="off" placeholder="name or package id" data-i18n-placeholder="catalog.searchPlaceholder" />
+        </label>
 
-		<p class="package-count" id="package-count"></p>
+        <p class="package-count" id="package-count"></p>
 
-		<div class="package-list" id="package-list"></div>
+        <div class="package-list" id="package-list"></div>
 
-		<p class="package-note">
-			package categories and descriptions may be AI-generated and can occasionally be inaccurate.
-		</p>
+        <p class="package-note" data-i18n="catalog.note">
+          package categories and descriptions may be AI-generated and can occasionally be inaccurate.
+        </p>
       </section>
     </div>
 
-    <script src="catalog.generated.js"></script>
-    <script src="script.js"></script>
+    <script src="catalog.generated.js?v=7"></script>
+    <script src="i18n.js?v=7"></script>
+    <script src="script.js?v=7"></script>
   </body>
 </html>
