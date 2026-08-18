@@ -82,15 +82,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Browser for Tor network access."
   },
   {
-    "name": "LibreWolf",
-    "packageId": "librewolf",
-    "category": "browser",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Privacy-focused Firefox fork."
-  },
-  {
     "name": "Zen Browser",
     "packageId": "zen-browser",
     "category": "browser",
@@ -134,15 +125,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Video meetings and conferencing app."
-  },
-  {
-    "name": "Microsoft Teams",
-    "packageId": "microsoft-teams",
-    "category": "communication",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Microsoft team chat and meetings app."
   },
   {
     "name": "Dorion",
@@ -595,15 +577,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Command-line search tool. Run with rg."
   },
   {
-    "name": "Codex CLI",
-    "packageId": "codex-cli",
-    "category": "terminal",
-    "type": "CLITool",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Command-line coding agent. Run with codex."
-  },
-  {
     "name": "Podman Desktop",
     "packageId": "podman-desktop",
     "category": "container",
@@ -694,15 +667,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Media player for video and audio."
   },
   {
-    "name": "AIMP",
-    "packageId": "aimp",
-    "category": "media",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Lightweight audio player with playlist and format support."
-  },
-  {
     "name": "foobar2000",
     "packageId": "foobar2000",
     "category": "media",
@@ -730,15 +694,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Music manager and player for large local libraries."
   },
   {
-    "name": "Audacious",
-    "packageId": "audacious",
-    "category": "media",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Lightweight audio player focused on sound quality and codec support."
-  },
-  {
     "name": "Audacity",
     "packageId": "audacity",
     "category": "media",
@@ -755,15 +710,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Codec pack for broad video and audio playback support."
-  },
-  {
-    "name": "GOM",
-    "packageId": "gom-player",
-    "category": "media",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Video player with wide codec and subtitle support."
   },
   {
     "name": "mpv",
@@ -800,15 +746,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Open source video editor."
-  },
-  {
-    "name": "HandBrake",
-    "packageId": "handbrake",
-    "category": "media",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Video transcoder and converter."
   },
   {
     "name": "yt-dlp",
@@ -872,15 +809,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Fast image viewer and basic editor."
-  },
-  {
-    "name": "XnView",
-    "packageId": "xnview",
-    "category": "graphics",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Image viewer and organizer."
   },
   {
     "name": "Inkscape",
@@ -955,15 +883,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Screenshot tool with annotation features."
   },
   {
-    "name": "ImgBurn",
-    "packageId": "imgburn",
-    "category": "disc",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Disc image and optical media burning tool."
-  },
-  {
     "name": "CDBurnerXP",
     "packageId": "cdburnerxp",
     "category": "disc",
@@ -989,15 +908,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Steam game launcher and store."
-  },
-  {
-    "name": "Epic Games Launcher",
-    "packageId": "epicgameslauncher",
-    "category": "gaming",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Epic Games Store launcher."
   },
   {
     "name": "Heroic Games Launcher",
@@ -1027,15 +937,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Voice and chat app for communities."
   },
   {
-    "name": "Parsec",
-    "packageId": "parsec",
-    "category": "gaming",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Low-latency remote desktop and game streaming app."
-  },
-  {
     "name": "Moonlight",
     "packageId": "moonlight",
     "category": "gaming",
@@ -1052,15 +953,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Self-hosted game streaming host."
-  },
-  {
-    "name": "MSI Afterburner",
-    "packageId": "msiafterburner",
-    "category": "gaming",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "GPU tuning and monitoring utility."
   },
   {
     "name": "AnyDesk",
@@ -1153,33 +1045,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Fast local file search tool."
   },
   {
-    "name": "TeraCopy",
-    "packageId": "teracopy",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "File copy utility with verification and queueing."
-  },
-  {
-    "name": "Revo Uninstaller",
-    "packageId": "revo-uninstaller",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Application uninstaller and cleanup tool."
-  },
-  {
-    "name": "Launchy",
-    "packageId": "launchy",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Keyboard-driven application launcher."
-  },
-  {
     "name": "WinDirStat",
     "packageId": "windirstat",
     "category": "utility",
@@ -1198,7 +1063,7 @@ window.FRESHCTL_CATALOG = [
     "description": "Fast disk space analyzer."
   },
   {
-    "name": "Glary Utilities",
+    "name": "Glary Utilities Free",
     "packageId": "glaryutilities-free",
     "category": "utility",
     "type": "Application",
@@ -1214,15 +1079,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Classic Start menu and shell enhancements."
-  },
-  {
-    "name": "CCleaner",
-    "packageId": "ccleaner",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "System cleanup utility."
   },
   {
     "name": "PowerToys",
@@ -1288,15 +1144,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Hardware sensor monitoring tool."
   },
   {
-    "name": "CPU-Z",
-    "packageId": "cpu-z",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "CPU, motherboard, memory, and system information tool."
-  },
-  {
     "name": "GPU-Z",
     "packageId": "gpu-z",
     "category": "utility",
@@ -1324,24 +1171,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Sysinternals process inspection tool."
   },
   {
-    "name": "Autoruns",
-    "packageId": "autoruns",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Sysinternals startup entry inspection tool."
-  },
-  {
-    "name": "TreeSize Free",
-    "packageId": "treesizefree",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Disk usage analyzer."
-  },
-  {
     "name": "EarTrumpet",
     "packageId": "eartrumpet",
     "category": "utility",
@@ -1358,24 +1187,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Windows taskbar, Start menu, and Explorer customization."
-  },
-  {
-    "name": "TranslucentTB",
-    "packageId": "translucenttb",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Windows taskbar transparency utility."
-  },
-  {
-    "name": "F.lux",
-    "packageId": "flux",
-    "category": "utility",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Display color temperature adjustment tool."
   },
   {
     "name": "Twinkle Tray",
@@ -1439,24 +1250,6 @@ window.FRESHCTL_CATALOG = [
     "source": "Chocolatey",
     "verified": true,
     "description": "Local password manager."
-  },
-  {
-    "name": "Malwarebytes",
-    "packageId": "malwarebytes",
-    "category": "security",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Anti-malware scanning and cleanup tool."
-  },
-  {
-    "name": "VeraCrypt",
-    "packageId": "veracrypt",
-    "category": "security",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Disk and volume encryption tool."
   },
   {
     "name": "BleachBit",
@@ -1558,15 +1351,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Network discovery and security scanner."
   },
   {
-    "name": "Syncthing",
-    "packageId": "syncthing",
-    "category": "network",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "Continuous file synchronization tool."
-  },
-  {
     "name": "LocalSend",
     "packageId": "localsend",
     "category": "network",
@@ -1612,15 +1396,6 @@ window.FRESHCTL_CATALOG = [
     "description": "Apache OpenOffice productivity suite."
   },
   {
-    "name": "Foxit Reader",
-    "packageId": "foxitreader",
-    "category": "productivity",
-    "type": "Application",
-    "source": "Chocolatey",
-    "verified": true,
-    "description": "PDF reader."
-  },
-  {
     "name": "Evernote",
     "packageId": "evernote",
     "category": "productivity",
@@ -1630,7 +1405,7 @@ window.FRESHCTL_CATALOG = [
     "description": "Notes and organization app."
   },
   {
-    "name": "OnlyOffice",
+    "name": "OnlyOffice Community",
     "packageId": "onlyoffice",
     "category": "productivity",
     "type": "Application",
@@ -1648,7 +1423,7 @@ window.FRESHCTL_CATALOG = [
     "description": "Lightweight PDF and ebook reader."
   },
   {
-    "name": "Claude",
+    "name": "Claude Desktop",
     "packageId": "claude",
     "category": "productivity",
     "type": "Application",

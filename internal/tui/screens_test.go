@@ -2124,12 +2124,12 @@ func TestCatalogSearchMatchesPackageID(t *testing.T) {
 	model := Model{
 		categories:  catalog.Default(),
 		catalogMode: catalogModeFull,
-		searchQuery: "codex-cli",
+		searchQuery: "googlechrome",
 		selected:    map[string]bool{},
 	}
 
 	items := model.filteredFullCatalogItems()
-	if len(items) != 1 || items[0].Package.ID != "codex-cli" {
+	if len(items) != 1 || items[0].Package.ID != "googlechrome" {
 		t.Fatalf("search should match package id, got %#v", itemNames(items))
 	}
 }

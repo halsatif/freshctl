@@ -11,23 +11,23 @@ import (
 
 func TestExportCatalogIncludesMetadata(t *testing.T) {
 	packages := catalog.Export(catalog.Default())
-	if len(packages) != 189 {
-		t.Fatalf("expected 189 exported packages, got %d", len(packages))
+	if len(packages) != 164 {
+		t.Fatalf("expected 164 exported packages, got %d", len(packages))
 	}
 
 	byID := packagesByID(packages)
-	codex := byID["codex-cli"]
-	if codex.Name != "Codex CLI" {
-		t.Fatalf("expected Codex CLI export, got %#v", codex)
+	vscode := byID["vscode"]
+	if vscode.Name != "Visual Studio Code" {
+		t.Fatalf("expected Visual Studio Code export, got %#v", vscode)
 	}
-	if codex.Type != string(catalog.PackageTypeCLITool) {
-		t.Fatalf("expected Codex CLI type %q, got %q", catalog.PackageTypeCLITool, codex.Type)
+	if vscode.Type != string(catalog.PackageTypeApplication) {
+		t.Fatalf("expected Visual Studio Code type %q, got %q", catalog.PackageTypeApplication, vscode.Type)
 	}
-	if codex.Source != string(catalog.ProviderChocolatey) {
-		t.Fatalf("expected Codex CLI source %q, got %q", catalog.ProviderChocolatey, codex.Source)
+	if vscode.Source != string(catalog.ProviderDirect) {
+		t.Fatalf("expected Visual Studio Code source %q, got %q", catalog.ProviderDirect, vscode.Source)
 	}
-	if !codex.Verified {
-		t.Fatal("expected Codex CLI to be verified")
+	if !vscode.Verified {
+		t.Fatal("expected Visual Studio Code to be verified")
 	}
 	if byID["docker-desktop"].PackageID != "" {
 		t.Fatal("docker-desktop should not be exported")
@@ -53,8 +53,8 @@ func TestGeneratedSiteCatalogIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(packages) != 189 {
-		t.Fatalf("expected generated site catalog to contain 189 packages, got %d", len(packages))
+	if len(packages) != 164 {
+		t.Fatalf("expected generated site catalog to contain 164 packages, got %d", len(packages))
 	}
 }
 
