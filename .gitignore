@@ -1,4 +1,33 @@
-AGENTS.md
-freshctl.exe
-freshctl.exe~
-/sandbox
+# Local Codex instructions and scratch work
+/AGENTS.md
+/.tmp-*/
+/sandbox/
+/tmp/
+
+# Local Freshctl data
+/freshctl-profile.json
+
+# Go and Windows build artifacts
+/freshctl.exe
+/freshctl.exe~
+*.test
+*.out
+*.prof
+*.pprof
+
+# Logs and temporary editor files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# Local environment files
+/.env
+/.env.*
+!/.env.example
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
