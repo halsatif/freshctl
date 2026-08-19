@@ -12,18 +12,6 @@
 </p>
 
 <p align="center">
-	<span style="font-size: 30px; font-weight: 300;">
-  windows bootstrap utility
-  </span>
-</p>
-
-<p align="center">
-	<span style="font-size: 22px; font-weight: 300;">
-  install apps from a clean terminal interface.
-  </span>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/platform-windows-0078D6">
   <img src="https://img.shields.io/github/last-commit/halsatif/freshctl">
   <img src="https://img.shields.io/badge/built%20with-go-00ADD8">
