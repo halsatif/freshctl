@@ -25,8 +25,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-windows-0078D6">
+  <img src="https://img.shields.io/github/last-commit/halsatif/freshctl">
   <img src="https://img.shields.io/badge/built%20with-go-00ADD8">
-  <img src="https://img.shields.io/badge/license-MIT-purple">
+  <img src="https://img.shields.io/github/license/halsatif/freshctl">
 </p>
 
 ## Install
