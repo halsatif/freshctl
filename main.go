@@ -12,7 +12,7 @@ import (
 func main() {
 	console.CenterWindow()
 
-	p := tea.NewProgram(tui.NewModel(os.Args[1:]), tea.WithAltScreen())
+	p := tea.NewProgram(tui.NewModel(os.Args[1:]), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "freshctl failed: %v\n", err)
 		os.Exit(1)

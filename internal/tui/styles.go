@@ -38,8 +38,21 @@ var (
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("203"))
 
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214"))
+
 	successStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42"))
+
+	logActivityStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("39"))
+
+	logApplicationStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("252"))
+
+	logBorderStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
 
 	footerKeyStyle = lipgloss.NewStyle().
 			Bold(true).

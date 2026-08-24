@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/halsatif/freshctl/internal/catalog"
 	"github.com/halsatif/freshctl/internal/installer"
 	presetpkg "github.com/halsatif/freshctl/internal/presets"
@@ -1783,8 +1784,9 @@ func TestInstallScreenNeverRendersRawLogs(t *testing.T) {
 		currentStep:   1,
 		currentStatus: "Installing...",
 		installLogs: []installLogEntry{{
-			Application: app.Name,
-			Line:        "RAW PROVIDER OUTPUT THAT MUST STAY OFF THE INSTALL SCREEN",
+			ApplicationID:   app.ID,
+			ApplicationName: app.Name,
+			Message:         "RAW PROVIDER OUTPUT THAT MUST STAY OFF THE INSTALL SCREEN",
 		}},
 	}
 
@@ -1811,7 +1813,7 @@ func TestInstallLogScreenNavigationPreservesInstallState(t *testing.T) {
 		currentApp:    app,
 		currentStep:   1,
 		currentStatus: "Downloading... 50%",
-		installLogs:   []installLogEntry{{Application: app.Name, Line: "downloading 50%"}},
+		installLogs:   []installLogEntry{{ApplicationID: app.ID, ApplicationName: app.Name, Message: "downloading 50%"}},
 		logFollow:     true,
 	}
 
@@ -1861,6 +1863,67 @@ func TestInstallLogsScrollAndKeepFooterVisible(t *testing.T) {
 	}
 }
 
+func TestInstallLogsMouseWheelScrollsAndControlsFollow(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       80,
+		height:      10,
+		installLogs: fakeInstallLogEntries(12),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+	latest := model.logScroll
+
+	updated, _ := model.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress})
+	scrolledUp := updated.(Model)
+	if scrolledUp.logScroll != latest-1 {
+		t.Fatalf("mouse wheel up should scroll one row, got %d want %d", scrolledUp.logScroll, latest-1)
+	}
+	if scrolledUp.logFollow {
+		t.Fatal("mouse wheel up should disable auto-follow")
+	}
+
+	scrolledUp.moveLogScroll(-2)
+	updated, _ = scrolledUp.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	scrolledDown := updated.(Model)
+	if scrolledDown.logScroll != latest-2 {
+		t.Fatalf("mouse wheel down should scroll one row, got %d want %d", scrolledDown.logScroll, latest-2)
+	}
+	if scrolledDown.logFollow {
+		t.Fatal("mouse wheel down should not resume auto-follow before latest")
+	}
+
+	for !scrolledDown.logFollow {
+		updated, _ = scrolledDown.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+		scrolledDown = updated.(Model)
+	}
+	if scrolledDown.logScroll != scrolledDown.maxLogScroll() {
+		t.Fatalf("mouse wheel should resume follow only at latest, scroll=%d max=%d", scrolledDown.logScroll, scrolledDown.maxLogScroll())
+	}
+}
+
+func TestInstallLogsMouseWheelPositionSurvivesReopen(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       80,
+		height:      10,
+		installLogs: fakeInstallLogEntries(12),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+	updated, _ := model.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress})
+	scrolled := updated.(Model)
+	wantScroll := scrolled.logScroll
+
+	updated, _ = scrolled.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	closed := updated.(Model)
+	updated, _ = closed.handleInstallKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	reopened := updated.(Model)
+	if reopened.logScroll != wantScroll || reopened.logFollow {
+		t.Fatalf("wheel scroll position should survive reopen, scroll=%d want=%d follow=%v", reopened.logScroll, wantScroll, reopened.logFollow)
+	}
+}
+
 func TestInstallLogsTruncateLongLines(t *testing.T) {
 	longLine := strings.Repeat("provider-output-", 20)
 	model := Model{
@@ -1868,8 +1931,9 @@ func TestInstallLogsTruncateLongLines(t *testing.T) {
 		width:  50,
 		height: 12,
 		installLogs: []installLogEntry{{
-			Application: "Very Long Application Name",
-			Line:        "\x1b[31m" + longLine + "\x1b[0m\t\x00",
+			ApplicationID:   "very-long-app",
+			ApplicationName: "Very Long Application Name",
+			Message:         "\x1b[31m" + longLine + "\x1b[0m\t\x00",
 		}},
 		logFollow: true,
 	}
@@ -1896,7 +1960,7 @@ func TestInstallLogEventsAppendWhileViewing(t *testing.T) {
 		height:        14,
 		currentApp:    app,
 		currentStatus: "Installing...",
-		installLogs:   []installLogEntry{{Application: app.Name, Line: "first line"}},
+		installLogs:   []installLogEntry{{ApplicationID: app.ID, ApplicationName: app.Name, Message: "first line"}},
 		logFollow:     true,
 	}
 
@@ -1912,11 +1976,14 @@ func TestInstallLogEventsAppendWhileViewing(t *testing.T) {
 	if got.screen != screenInstallLogs {
 		t.Fatal("receiving an install event should not close the logs screen")
 	}
-	if len(got.installLogs) != 2 || got.installLogs[1].Line != "second line" {
+	if len(got.installLogs) != 2 || got.installLogs[1].Message != "second line" {
 		t.Fatalf("new install event should append to shared log buffer, got %#v", got.installLogs)
 	}
-	if !strings.Contains(stripANSI(got.View()), "[Firefox] second line") {
-		t.Fatalf("logs should identify the producing application, got:\n%s", stripANSI(got.View()))
+	if got.installLogs[1].ApplicationID != app.ID || got.installLogs[1].ApplicationName != app.Name {
+		t.Fatalf("log entry should preserve structured application metadata, got %#v", got.installLogs[1])
+	}
+	if !strings.Contains(stripANSI(got.View()), "Firefox") || strings.Contains(stripANSI(got.View()), "[Firefox]") {
+		t.Fatalf("logs should identify the application in the header without repeated prefixes, got:\n%s", stripANSI(got.View()))
 	}
 }
 
@@ -1928,7 +1995,7 @@ func TestInstallLogAutoFollowStopsAndResumes(t *testing.T) {
 		logFollow: true,
 	}
 	for _, entry := range fakeInstallLogEntries(10) {
-		model.appendInstallLog(catalog.Application{Name: entry.Application}, entry.Line)
+		model.appendInstallLog(catalog.Application{ID: entry.ApplicationID, Name: entry.ApplicationName}, entry.Message)
 	}
 	if model.logScroll != model.maxLogScroll() {
 		t.Fatalf("following logs should stay at bottom, scroll=%d max=%d", model.logScroll, model.maxLogScroll())
@@ -1952,6 +2019,217 @@ func TestInstallLogAutoFollowStopsAndResumes(t *testing.T) {
 	model.appendInstallLog(catalog.Application{Name: "Package"}, "new at bottom")
 	if model.logScroll != model.maxLogScroll() {
 		t.Fatalf("auto-follow should track appended logs, scroll=%d max=%d", model.logScroll, model.maxLogScroll())
+	}
+}
+
+func TestInstallLogsFirstOpenStartsAtLatest(t *testing.T) {
+	model := Model{
+		screen:      screenInstall,
+		width:       80,
+		height:      10,
+		installLogs: fakeInstallLogEntries(10),
+		logFollow:   true,
+	}
+
+	updated, _ := model.handleInstallKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	got := updated.(Model)
+	if got.screen != screenInstallLogs || !got.logFollow || got.logScroll != got.maxLogScroll() {
+		t.Fatalf("first logs open should follow latest, screen=%v scroll=%d max=%d follow=%v", got.screen, got.logScroll, got.maxLogScroll(), got.logFollow)
+	}
+}
+
+func TestInstallLogsReopenRestoresManualPosition(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       80,
+		height:      10,
+		installLogs: fakeInstallLogEntries(12),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+	model.moveLogScroll(-3)
+	wantScroll := model.logScroll
+
+	updated, _ := model.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	closed := updated.(Model)
+	updated, _ = closed.handleInstallKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	reopened := updated.(Model)
+	if reopened.logScroll != wantScroll || reopened.logFollow {
+		t.Fatalf("reopening logs should restore manual position, scroll=%d want=%d follow=%v", reopened.logScroll, wantScroll, reopened.logFollow)
+	}
+}
+
+func TestInstallLogsReopenKeepsFollowingLatest(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       80,
+		height:      10,
+		installLogs: fakeInstallLogEntries(12),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+
+	updated, _ := model.handleInstallLogsKey(tea.KeyMsg{Type: tea.KeyEsc})
+	closed := updated.(Model)
+	closed.appendInstallLog(catalog.Application{ID: "latest", Name: "Latest App"}, "new output")
+	updated, _ = closed.handleInstallKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	reopened := updated.(Model)
+	if !reopened.logFollow || reopened.logScroll != reopened.maxLogScroll() {
+		t.Fatalf("reopening from latest should keep following, scroll=%d max=%d follow=%v", reopened.logScroll, reopened.maxLogScroll(), reopened.logFollow)
+	}
+}
+
+func TestInstallLogsHeaderTracksVisibleApplication(t *testing.T) {
+	model := Model{
+		screen: screenInstallLogs,
+		width:  80,
+		height: 7,
+		installLogs: []installLogEntry{
+			{ApplicationID: "chrome", ApplicationName: "Google Chrome", Message: "chrome output"},
+			{ApplicationID: "telegram", ApplicationName: "Telegram Desktop", Message: "telegram output"},
+		},
+	}
+
+	if got := model.visibleLogApplicationName(); got != "Google Chrome" {
+		t.Fatalf("expected first visible application header, got %q", got)
+	}
+	model.logScroll = 1
+	if got := model.visibleLogApplicationName(); got != "Telegram Desktop" {
+		t.Fatalf("expected header to follow scrolling, got %q", got)
+	}
+	if view := stripANSI(model.View()); !strings.Contains(view, "Telegram Desktop") || strings.Contains(view, "provider:") {
+		t.Fatalf("logs should show visible application without provider metadata, got:\n%s", view)
+	}
+}
+
+func TestInstallLogsHeaderUsesDominantVisibleApplication(t *testing.T) {
+	entries := make([]installLogEntry, 0, 20)
+	for index := 0; index < 6; index++ {
+		entries = append(entries, installLogEntry{ApplicationID: "go", ApplicationName: "Go", Message: "go output"})
+	}
+	for index := 0; index < 14; index++ {
+		entries = append(entries, installLogEntry{ApplicationID: "tailscale", ApplicationName: "Tailscale", Message: "tailscale output"})
+	}
+	model := Model{width: 80, height: 26, installLogs: entries}
+
+	if got := model.visibleLogApplicationName(); got != "Tailscale" {
+		t.Fatalf("header should use dominant visible application, got %q", got)
+	}
+}
+
+func TestInstallLogsHeaderTiePrefersLowerApplicationBlock(t *testing.T) {
+	model := Model{
+		width:  80,
+		height: 10,
+		installLogs: []installLogEntry{
+			{ApplicationID: "go", ApplicationName: "Go", Message: "go 1"},
+			{ApplicationID: "go", ApplicationName: "Go", Message: "go 2"},
+			{ApplicationID: "tailscale", ApplicationName: "Tailscale", Message: "tailscale 1"},
+			{ApplicationID: "tailscale", ApplicationName: "Tailscale", Message: "tailscale 2"},
+		},
+	}
+
+	if got := model.visibleLogApplicationName(); got != "Tailscale" {
+		t.Fatalf("equal visible counts should prefer lower newer block, got %q", got)
+	}
+}
+
+func TestInstallLogsHeaderUsesSingleVisibleApplication(t *testing.T) {
+	model := Model{
+		width:  80,
+		height: 10,
+		installLogs: []installLogEntry{
+			{ApplicationID: "firefox", ApplicationName: "Mozilla Firefox", Message: "one"},
+			{ApplicationID: "firefox", ApplicationName: "Mozilla Firefox", Message: "two"},
+		},
+	}
+
+	if got := model.visibleLogApplicationName(); got != "Mozilla Firefox" {
+		t.Fatalf("single application viewport should keep its header, got %q", got)
+	}
+}
+
+func TestInstallLogsHeaderKeepsContextForSystemEntry(t *testing.T) {
+	model := Model{
+		width:  80,
+		height: 7,
+		installLogs: []installLogEntry{
+			{ApplicationID: "chrome", ApplicationName: "Google Chrome", Message: "complete"},
+			{Message: "install session status"},
+		},
+		logScroll: 1,
+	}
+
+	if got := model.visibleLogApplicationName(); got != "Google Chrome" {
+		t.Fatalf("contextless entries should retain nearby application context, got %q", got)
+	}
+}
+
+func TestInstallLogSemanticClassification(t *testing.T) {
+	tests := []struct {
+		message string
+		want    installLogSemantic
+	}{
+		{"fatal error: installer failed", installLogError},
+		{"warning: optional component missing", installLogWarning},
+		{"installation completed successfully", installLogSuccess},
+		{"downloading package", installLogActivity},
+		{"package was uninstalled", installLogNeutral},
+		{"ordinary provider output", installLogNeutral},
+	}
+	for _, test := range tests {
+		if got := classifyInstallLog(test.message); got != test.want {
+			t.Fatalf("classifyInstallLog(%q)=%v want %v", test.message, got, test.want)
+		}
+	}
+}
+
+func TestInstallLogsRoundedLayoutAndStickyFooter(t *testing.T) {
+	model := Model{
+		screen:      screenInstallLogs,
+		width:       64,
+		height:      12,
+		installLogs: fakeInstallLogEntries(8),
+		logFollow:   true,
+	}
+	model.clampLogScroll()
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "╭ logs ") || !strings.Contains(view, "╰") {
+		t.Fatalf("logs should render in one rounded container, got:\n%s", view)
+	}
+	if count := strings.Count(view, "↑↓ scroll"); count != 1 {
+		t.Fatalf("logs footer should remain visible once, got %d in:\n%s", count, view)
+	}
+	if strings.LastIndex(view, "↑↓ scroll") < strings.LastIndex(view, "╰") {
+		t.Fatalf("footer should remain outside and below the container, got:\n%s", view)
+	}
+}
+
+func TestInstallLogsSmallTerminalDoesNotOverflow(t *testing.T) {
+	model := Model{
+		screen: screenInstallLogs,
+		width:  24,
+		height: 6,
+		installLogs: []installLogEntry{{
+			ApplicationID:   "long-app",
+			ApplicationName: "An Application Name That Is Much Too Long",
+			Message:         "https://example.com/" + strings.Repeat("very-long-path/", 8),
+		}},
+		logFollow: true,
+	}
+
+	view := stripANSI(model.View())
+	lines := strings.Split(view, "\n")
+	if len(lines) != model.height {
+		t.Fatalf("small logs view should fit terminal height, got %d lines want %d", len(lines), model.height)
+	}
+	for _, line := range lines {
+		if ansi.StringWidth(line) > model.width {
+			t.Fatalf("small logs view exceeds width %d: %q", model.width, line)
+		}
+	}
+	if !strings.Contains(view, "esc back") {
+		t.Fatalf("small logs view should keep an adaptive footer visible, got:\n%s", view)
 	}
 }
 
@@ -2676,8 +2954,9 @@ func fakeInstallLogEntries(count int) []installLogEntry {
 	entries := make([]installLogEntry, 0, count)
 	for i := 1; i <= count; i++ {
 		entries = append(entries, installLogEntry{
-			Application: "Package " + twoDigit(i),
-			Line:        "log line " + twoDigit(i),
+			ApplicationID:   "pkg-" + twoDigit(i),
+			ApplicationName: "Package " + twoDigit(i),
+			Message:         "log line " + twoDigit(i),
 		})
 	}
 	return entries

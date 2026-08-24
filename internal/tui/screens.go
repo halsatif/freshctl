@@ -489,37 +489,25 @@ func (m Model) viewInstall() string {
 }
 
 func (m Model) viewInstallLogs() string {
-	contentWidth := pageWidth(m.width)
-	appName := "waiting for installation"
-	providerName := "-"
-	if m.currentApp.Name != "" {
-		appName = m.currentApp.Name
-		if provider, ok := m.currentApp.PrimaryProvider(); ok {
-			providerName = string(provider.Type)
-		}
-	}
-
-	lines := []string{
-		titleStyle.Render("logs"),
-		fitLine("application: "+appName, contentWidth),
-		fitLine("provider: "+providerName, contentWidth),
-		"",
-	}
-
-	visibleRows := m.installLogViewportHeight()
+	layout := m.installLogsLayout()
+	lines := make([]string, 0, layout.viewportHeight)
 	start, end := m.installLogRange()
 	for index := start; index < end; index++ {
-		lines = append(lines, formatInstallLogEntry(m.installLogs[index], contentWidth))
+		lines = append(lines, formatInstallLogEntry(m.installLogs[index], layout.innerWidth))
 	}
-	if start == end {
+	if start == end && layout.viewportHeight > 0 {
 		lines = append(lines, mutedStyle.Render("Waiting for output..."))
 	}
-	for len(lines) < 4+visibleRows {
+	for len(lines) < layout.viewportHeight {
 		lines = append(lines, "")
 	}
 
-	lines = append(lines, "", m.footerFor(screenInstallLogs))
-	return place(strings.Join(lines, "\n"), m.width, m.height)
+	content := renderInstallLogsContainer(layout, m.visibleLogApplicationName(), lines)
+	if layout.footerGap {
+		content += "\n"
+	}
+	content += "\n" + m.footerFor(screenInstallLogs)
+	return place(content, m.width, m.height)
 }
 
 func (m Model) viewHelp() string {
@@ -1068,15 +1056,55 @@ func (s installStatus) RenderedCode() string {
 	return s.Style.Render(fmt.Sprintf("%-4s", s.Code))
 }
 
-func (m Model) installLogViewportHeight() int {
+type installLogsLayout struct {
+	width          int
+	innerWidth     int
+	viewportHeight int
+	showAppHeader  bool
+	showSeparator  bool
+	footerGap      bool
+}
+
+func (m Model) installLogsLayout() installLogsLayout {
+	width := pageWidth(m.width)
+	if width < 4 {
+		width = 4
+	}
+
+	layout := installLogsLayout{
+		width:          width,
+		innerWidth:     maxInt(1, width-4),
+		viewportHeight: 12,
+		showAppHeader:  true,
+		showSeparator:  true,
+		footerGap:      true,
+	}
 	if m.height <= 0 {
-		return 12
+		return layout
 	}
-	height := m.height - 8
-	if height < 1 {
-		return 1
+
+	layout.showAppHeader = m.height >= 5
+	layout.showSeparator = m.height >= 6
+	layout.footerGap = m.height >= 7
+	reserved := 3 // top border, bottom border and footer
+	if layout.showAppHeader {
+		reserved++
 	}
-	return height
+	if layout.showSeparator {
+		reserved++
+	}
+	if layout.footerGap {
+		reserved++
+	}
+	layout.viewportHeight = m.height - reserved
+	if layout.viewportHeight < 0 {
+		layout.viewportHeight = 0
+	}
+	return layout
+}
+
+func (m Model) installLogViewportHeight() int {
+	return m.installLogsLayout().viewportHeight
 }
 
 func (m Model) installLogRange() (int, int) {
@@ -1096,12 +1124,177 @@ func (m Model) installLogRange() (int, int) {
 	return start, end
 }
 
-func formatInstallLogEntry(entry installLogEntry, width int) string {
-	line := sanitizeLogLine(entry.Line)
-	if entry.Application != "" {
-		line = "[" + entry.Application + "] " + line
+func (m Model) visibleLogApplicationName() string {
+	start, end := m.installLogRange()
+	type applicationBlock struct {
+		name      string
+		count     int
+		lastIndex int
 	}
-	return fitLine(line, width)
+	blocks := make(map[string]applicationBlock)
+	bestKey := ""
+	for index := start; index < end; index++ {
+		id, name, ok := m.logApplicationContextAt(index)
+		if !ok {
+			continue
+		}
+		key := id
+		if key == "" {
+			key = name
+		}
+		block := blocks[key]
+		block.name = name
+		block.count++
+		block.lastIndex = index
+		blocks[key] = block
+		best := blocks[bestKey]
+		if bestKey == "" || block.count > best.count ||
+			(block.count == best.count && block.lastIndex > best.lastIndex) {
+			bestKey = key
+		}
+	}
+	if bestKey != "" {
+		return blocks[bestKey].name
+	}
+	if m.currentApp.Name != "" {
+		return m.currentApp.Name
+	}
+	return "Waiting for installation"
+}
+
+func (m Model) logApplicationContextAt(index int) (string, string, bool) {
+	if index < 0 || index >= len(m.installLogs) {
+		return "", "", false
+	}
+	if entry := m.installLogs[index]; entry.ApplicationID != "" || entry.ApplicationName != "" {
+		return entry.ApplicationID, logApplicationDisplayName(entry), true
+	}
+
+	previous := -1
+	for candidate := index - 1; candidate >= 0; candidate-- {
+		entry := m.installLogs[candidate]
+		if entry.ApplicationID != "" || entry.ApplicationName != "" {
+			previous = candidate
+			break
+		}
+	}
+	next := -1
+	for candidate := index + 1; candidate < len(m.installLogs); candidate++ {
+		entry := m.installLogs[candidate]
+		if entry.ApplicationID != "" || entry.ApplicationName != "" {
+			next = candidate
+			break
+		}
+	}
+	contextIndex := previous
+	if next >= 0 && (previous < 0 || next-index <= index-previous) {
+		contextIndex = next
+	}
+	if contextIndex < 0 {
+		return "", "", false
+	}
+	entry := m.installLogs[contextIndex]
+	return entry.ApplicationID, logApplicationDisplayName(entry), true
+}
+
+func logApplicationDisplayName(entry installLogEntry) string {
+	if entry.ApplicationName != "" {
+		return entry.ApplicationName
+	}
+	return entry.ApplicationID
+}
+
+type installLogSemantic int
+
+const (
+	installLogNeutral installLogSemantic = iota
+	installLogActivity
+	installLogSuccess
+	installLogWarning
+	installLogError
+)
+
+func classifyInstallLog(message string) installLogSemantic {
+	lower := strings.ToLower(sanitizeLogLine(message))
+	if containsLogTerm(lower, "error", "failed", "failure", "fatal", "exception") {
+		return installLogError
+	}
+	if containsLogTerm(lower, "warning", "warn") {
+		return installLogWarning
+	}
+	if containsLogTerm(lower, "success", "successful", "completed successfully") ||
+		(strings.Contains(lower, "installed") && !strings.Contains(lower, "not installed") && !strings.Contains(lower, "uninstalled")) ||
+		strings.Contains(lower, "download complete") || strings.Contains(lower, "installation complete") {
+		return installLogSuccess
+	}
+	if containsLogTerm(lower, "downloading", "installing", "verifying", "extracting", "launching", "detecting") {
+		return installLogActivity
+	}
+	return installLogNeutral
+}
+
+func containsLogTerm(value string, terms ...string) bool {
+	for _, term := range terms {
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func installLogStyle(semantic installLogSemantic) lipgloss.Style {
+	switch semantic {
+	case installLogError:
+		return errorStyle
+	case installLogWarning:
+		return warningStyle
+	case installLogSuccess:
+		return successStyle
+	case installLogActivity:
+		return logActivityStyle
+	default:
+		return mutedStyle
+	}
+}
+
+func formatInstallLogEntry(entry installLogEntry, width int) string {
+	message := fitLine(sanitizeLogLine(entry.Message), width)
+	return installLogStyle(classifyInstallLog(entry.Message)).Render(message)
+}
+
+func renderInstallLogsContainer(layout installLogsLayout, applicationName string, logLines []string) string {
+	border := lipgloss.RoundedBorder()
+	lines := []string{renderInstallLogsTopBorder(layout.width, border)}
+	if layout.showAppHeader {
+		lines = append(lines, renderInstallLogsContentLine(logApplicationStyle.Render(applicationName), layout, border))
+	}
+	if layout.showSeparator {
+		lines = append(lines, logBorderStyle.Render(border.MiddleLeft+strings.Repeat(border.Top, layout.width-2)+border.MiddleRight))
+	}
+	for _, line := range logLines {
+		lines = append(lines, renderInstallLogsContentLine(line, layout, border))
+	}
+	lines = append(lines, logBorderStyle.Render(border.BottomLeft+strings.Repeat(border.Bottom, layout.width-2)+border.BottomRight))
+	return strings.Join(lines, "\n")
+}
+
+func renderInstallLogsTopBorder(width int, border lipgloss.Border) string {
+	title := " logs "
+	if width < ansi.StringWidth(title)+2 {
+		return logBorderStyle.Render(border.TopLeft + strings.Repeat(border.Top, maxInt(0, width-2)) + border.TopRight)
+	}
+	remaining := width - 2 - ansi.StringWidth(title)
+	return logBorderStyle.Render(border.TopLeft) + titleStyle.Render(title) +
+		logBorderStyle.Render(strings.Repeat(border.Top, remaining)+border.TopRight)
+}
+
+func renderInstallLogsContentLine(content string, layout installLogsLayout, border lipgloss.Border) string {
+	content = fitLine(content, layout.innerWidth)
+	padding := layout.innerWidth - ansi.StringWidth(content)
+	if padding < 0 {
+		padding = 0
+	}
+	return logBorderStyle.Render(border.Left) + " " + content + strings.Repeat(" ", padding) + " " + logBorderStyle.Render(border.Right)
 }
 
 func bootstrapLogLimit(height int) int {

@@ -110,8 +110,9 @@ type InstalledStatus struct {
 }
 
 type installLogEntry struct {
-	Application string
-	Line        string
+	ApplicationID   string
+	ApplicationName string
+	Message         string
 }
 
 type installEventMsg struct {
@@ -190,6 +191,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		if m.screen == screenInstallLogs {
+			return m.handleInstallLogsMouse(msg)
+		}
+		return m, nil
 	case installEventMsg:
 		return m.handleInstallEvent(msg)
 	case bootstrapEventMsg:
@@ -1052,6 +1058,16 @@ func (m Model) handleInstallLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleInstallLogsMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		m.moveLogScroll(-1)
+	case tea.MouseButtonWheelDown:
+		m.moveLogScroll(1)
+	}
+	return m, nil
+}
+
 func (m *Model) moveInstallScroll(delta int) {
 	m.installScroll += delta
 	m.clampInstallScroll()
@@ -1073,8 +1089,9 @@ func (m *Model) clampInstallScroll() {
 
 func (m *Model) appendInstallLog(app catalog.Application, line string) {
 	m.installLogs = append(m.installLogs, installLogEntry{
-		Application: app.Name,
-		Line:        line,
+		ApplicationID:   app.ID,
+		ApplicationName: app.Name,
+		Message:         line,
 	})
 	if m.logFollow {
 		m.logScroll = m.maxLogScroll()
