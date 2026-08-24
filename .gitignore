@@ -1,33 +1,107 @@
-# Local Codex instructions and scratch work
+# Local agent instructions and workspace state
 /AGENTS.md
+/.codex/
+/.claude/
+/.cursor/
 /.tmp-*/
-/sandbox/
+/.tmp/
 /tmp/
+/sandbox/
+/.worktrees/
+/worktrees/
 
-# Local Freshctl data
+# Local freshctl data
 /freshctl-profile.json
+/freshctl-profile-*.json
+/.freshctl/
+/downloads/
+/artifacts/
 
-# Go and Windows build artifacts
-/freshctl.exe
-/freshctl.exe~
+# Go build, test, profiling, and coverage output
+*.exe
+*.exe~
+*.dll
+*.pdb
 *.test
 *.out
+*.cover
 *.prof
 *.pprof
+*.coverprofile
+coverage.out
+/bin/
+/build/
+/dist/
+/release/
+/freshctl*.zip
+/freshctl*.tar.gz
 
-# Logs and temporary editor files
-*.log
-*.tmp
-*.bak
+# Downloaded Windows installer artifacts
+/*.msi
+/*.msix
+/*.msixbundle
+/*.appx
+/*.appxbundle
+/*.nupkg
+
+# Website tooling and deployment state
+node_modules/
+.next/
+.nuxt/
+.svelte-kit/
+.parcel-cache/
+.turbo/
+.eslintcache
+.stylelintcache
+.vercel/
+.wrangler/
+.dev.vars
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated website catalog is intentionally committed for static hosting
+!/site/catalog.generated.js
+
+# IDE and editor state
+/.vscode/
+/.idea/
+/.vs/
+/.fleet/
+/.history/
+*.code-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 *.swp
+*.swo
 *~
 
-# Local environment files
-/.env
-/.env.*
-!/.env.example
+# Logs, caches, and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+/.cache/
+/coverage/
+
+# Local environment and signing secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.pfx
+*.p12
 
 # Operating-system metadata
 .DS_Store
 Thumbs.db
+ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
