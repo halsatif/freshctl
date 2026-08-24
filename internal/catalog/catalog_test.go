@@ -77,15 +77,29 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 	}
 }
 
-func TestOnlyVSCodeUsesDirectProvider(t *testing.T) {
+func TestExpectedApplicationsUseDirectProvider(t *testing.T) {
+	directApplications := map[string]InstallerType{
+		"vscode":       InstallerTypeExecutable,
+		"googlechrome": InstallerTypeMSI,
+		"firefox":      InstallerTypeExecutable,
+		"telegram":     InstallerTypeExecutable,
+		"bitwarden":    InstallerTypeExecutable,
+		"tailscale":    InstallerTypeMSI,
+	}
+
 	for _, app := range collectPackages(Default()) {
-		if len(app.Providers) != 1 {
-			t.Fatalf("%s should have exactly one provider, got %d", app.Name, len(app.Providers))
+		installerType, direct := directApplications[app.ID]
+		wantProviders := 1
+		if direct {
+			wantProviders = 2
+		}
+		if len(app.Providers) != wantProviders {
+			t.Fatalf("%s should have %d providers, got %d", app.Name, wantProviders, len(app.Providers))
 		}
 		provider := app.Providers[0]
 		expectedType := ProviderChocolatey
 		expectedStrategy := InstallStrategyPackageManager
-		if app.ID == "vscode" {
+		if direct {
 			expectedType = ProviderDirect
 			expectedStrategy = InstallStrategyDirectInstaller
 		}
@@ -95,11 +109,23 @@ func TestOnlyVSCodeUsesDirectProvider(t *testing.T) {
 		if provider.Strategy != expectedStrategy {
 			t.Fatalf("%s should use strategy %s, got %q", app.Name, expectedStrategy, provider.Strategy)
 		}
-		if app.ID != "vscode" && provider.Type != ProviderChocolatey {
+		if !direct && provider.Type != ProviderChocolatey {
 			t.Fatalf("%s should still use Chocolatey, got %q", app.Name, provider.Type)
 		}
 		if provider.PackageID != app.ID {
 			t.Fatalf("%s should preserve its provider package ID, got %q", app.Name, provider.PackageID)
+		}
+		if direct {
+			if provider.Metadata.Direct == nil {
+				t.Fatalf("%s should include Direct metadata", app.Name)
+			}
+			if provider.Metadata.Direct.InstallerType != installerType {
+				t.Fatalf("%s should use installer type %q, got %q", app.Name, installerType, provider.Metadata.Direct.InstallerType)
+			}
+			fallback := app.Providers[1]
+			if fallback.Type != ProviderChocolatey || fallback.PackageID != app.ID {
+				t.Fatalf("%s should keep Chocolatey as its secondary provider, got %#v", app.Name, fallback)
+			}
 		}
 	}
 }
@@ -161,6 +187,8 @@ func TestKnownPackageDetectionMetadata(t *testing.T) {
 		"wezterm":                    {method: DetectRegistry, value: "WezTerm"},
 		"discord":                    {method: DetectRegistry, value: "Discord"},
 		"telegram":                   {method: DetectRegistry, value: "Telegram Desktop"},
+		"bitwarden":                  {method: DetectRegistry, value: "Bitwarden"},
+		"tailscale":                  {method: DetectRegistry, value: "Tailscale"},
 		"signal":                     {method: DetectRegistry, value: "Signal"},
 		"7zip":                       {method: DetectRegistry, value: "7-Zip"},
 		"everything":                 {method: DetectRegistry, value: "Everything"},

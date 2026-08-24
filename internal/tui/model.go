@@ -650,7 +650,8 @@ func (m Model) handleReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func applicationsUseProvider(apps []catalog.Application, providerType catalog.ProviderType) bool {
 	for _, app := range apps {
-		if _, ok := app.ProviderByType(providerType); ok {
+		provider, ok := app.PrimaryProvider()
+		if ok && provider.Type == providerType {
 			return true
 		}
 	}

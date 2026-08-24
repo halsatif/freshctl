@@ -1096,11 +1096,18 @@ func TestNewModelScansInstalledStatusAtStartup(t *testing.T) {
 func TestApplicationsUseProvider(t *testing.T) {
 	directApp := catalog.Application{
 		ID: "direct-app",
-		Providers: []catalog.Provider{{
-			Type:      catalog.ProviderDirect,
-			PackageID: "direct-app",
-			Strategy:  catalog.InstallStrategyDirectInstaller,
-		}},
+		Providers: []catalog.Provider{
+			{
+				Type:      catalog.ProviderDirect,
+				PackageID: "direct-app",
+				Strategy:  catalog.InstallStrategyDirectInstaller,
+			},
+			{
+				Type:      catalog.ProviderChocolatey,
+				PackageID: "direct-app",
+				Strategy:  catalog.InstallStrategyPackageManager,
+			},
+		},
 	}
 	chocolateyApp := catalog.Application{
 		ID:        "chocolatey-app",
@@ -1108,7 +1115,7 @@ func TestApplicationsUseProvider(t *testing.T) {
 	}
 
 	if applicationsUseProvider([]catalog.Application{directApp}, catalog.ProviderChocolatey) {
-		t.Fatal("Direct-only selection should not require Chocolatey")
+		t.Fatal("Direct-primary selection should not require its secondary Chocolatey provider")
 	}
 	if !applicationsUseProvider([]catalog.Application{directApp, chocolateyApp}, catalog.ProviderChocolatey) {
 		t.Fatal("mixed selection should require Chocolatey")

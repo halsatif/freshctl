@@ -118,6 +118,25 @@ func TestCommandForResolvesProvider(t *testing.T) {
 	}
 }
 
+func TestCommandForPrefersDirectCatalogProvider(t *testing.T) {
+	var chrome catalog.Application
+	for _, category := range catalog.Default() {
+		for _, app := range category.Apps {
+			if app.ID == "googlechrome" {
+				chrome = app
+				break
+			}
+		}
+	}
+	if chrome.ID == "" {
+		t.Fatal("Google Chrome should exist in the default catalog")
+	}
+
+	if got := CommandFor(chrome); got != "direct install googlechrome" {
+		t.Fatalf("Google Chrome should prefer Direct, got %q", got)
+	}
+}
+
 func collectInstallEvents(app catalog.Application) []Event {
 	events := make(chan Event)
 	go InstallApps(context.Background(), []catalog.Application{app}, events, nil)

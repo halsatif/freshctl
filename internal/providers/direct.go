@@ -30,7 +30,7 @@ type Direct struct {
 	makeTempDir     func(string, string) (string, error)
 	removeAll       func(string) error
 	downloadFile    func(context.Context, string, string, func(string)) error
-	runInstaller    func(context.Context, string, []string, func(string)) error
+	runInstaller    func(context.Context, catalog.InstallerType, string, []string, func(string)) error
 	detectInstalled func(catalog.Application) bool
 }
 
@@ -63,7 +63,9 @@ func (d *Direct) Validate(app catalog.Application, provider catalog.Provider) er
 	if metadata == nil {
 		return directMetadataError("metadata is required")
 	}
-	if metadata.InstallerType != catalog.InstallerTypeExecutable {
+	switch metadata.InstallerType {
+	case catalog.InstallerTypeExecutable, catalog.InstallerTypeMSI:
+	default:
 		return directMetadataError("installer type %q is not supported", metadata.InstallerType)
 	}
 	if len(metadata.Downloads) == 0 {
@@ -75,10 +77,18 @@ func (d *Direct) Validate(app catalog.Application, provider catalog.Provider) er
 	if metadata.ChecksumSHA256 != "" {
 		return directMetadataError("checksum verification is not implemented yet")
 	}
-	if metadata.Filename != "" {
-		if filepath.Base(metadata.Filename) != metadata.Filename || metadata.Filename == "." {
-			return directMetadataError("installer filename must not contain a path")
-		}
+	if strings.TrimSpace(metadata.Filename) == "" {
+		return directMetadataError("installer filename is required")
+	}
+	if filepath.Base(metadata.Filename) != metadata.Filename || metadata.Filename == "." {
+		return directMetadataError("installer filename must not contain a path")
+	}
+	wantExtension := ".exe"
+	if metadata.InstallerType == catalog.InstallerTypeMSI {
+		wantExtension = ".msi"
+	}
+	if !strings.EqualFold(filepath.Ext(metadata.Filename), wantExtension) {
+		return directMetadataError("%s installer filename must end in %s", metadata.InstallerType, wantExtension)
 	}
 	if !detection.HasDetectionMetadata(app) {
 		return directMetadataError("installed detection metadata is required")
@@ -155,8 +165,7 @@ func (d *Direct) install(ctx context.Context, app catalog.Application, provider 
 		}
 	}()
 
-	filename := directInstallerFilename(metadata.Filename, download.URL)
-	installerPath := filepath.Join(tempDir, filename)
+	installerPath := filepath.Join(tempDir, metadata.Filename)
 
 	logLine(opts.Log, "downloading "+app.Name)
 	if err := d.downloadFile(ctx, download.URL, installerPath, opts.Log); err != nil {
@@ -164,7 +173,7 @@ func (d *Direct) install(ctx context.Context, app catalog.Application, provider 
 	}
 
 	logLine(opts.Log, "installing "+app.Name)
-	if err := d.runInstaller(ctx, installerPath, metadata.SilentArgs, opts.Log); err != nil {
+	if err := d.runInstaller(ctx, metadata.InstallerType, installerPath, metadata.SilentArgs, opts.Log); err != nil {
 		return fmt.Errorf("installer execution failed for %s: %w", app.Name, err)
 	}
 
@@ -206,20 +215,6 @@ func installerArchitecture(goarch string) (catalog.InstallerArchitecture, error)
 	}
 }
 
-func directInstallerFilename(filename, downloadURL string) string {
-	if filename != "" {
-		return filename
-	}
-	parsedURL, err := url.Parse(downloadURL)
-	if err == nil {
-		candidate := filepath.Base(parsedURL.Path)
-		if candidate != "." && candidate != "/" && strings.HasSuffix(strings.ToLower(candidate), ".exe") {
-			return candidate
-		}
-	}
-	return "installer.exe"
-}
-
 func directMetadataError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrUnsupportedDirectMetadata, fmt.Sprintf(format, args...))
 }
@@ -259,8 +254,12 @@ func downloadDirectInstaller(ctx context.Context, downloadURL, destination strin
 	return nil
 }
 
-func runDirectInstaller(ctx context.Context, path string, args []string, _ func(string)) error {
-	cmd := exec.CommandContext(ctx, path, args...)
+func runDirectInstaller(ctx context.Context, installerType catalog.InstallerType, path string, args []string, _ func(string)) error {
+	command, commandArgs, err := directInstallerCommand(installerType, path, args)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, command, commandArgs...)
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -269,6 +268,19 @@ func runDirectInstaller(ctx context.Context, path string, args []string, _ func(
 		return err
 	}
 	return nil
+}
+
+func directInstallerCommand(installerType catalog.InstallerType, path string, args []string) (string, []string, error) {
+	switch installerType {
+	case catalog.InstallerTypeExecutable:
+		return path, append([]string{}, args...), nil
+	case catalog.InstallerTypeMSI:
+		commandArgs := []string{"/i", path}
+		commandArgs = append(commandArgs, args...)
+		return "msiexec.exe", commandArgs, nil
+	default:
+		return "", nil, directMetadataError("installer type %q is not supported", installerType)
+	}
 }
 
 type downloadProgress struct {
