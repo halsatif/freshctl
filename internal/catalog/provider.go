@@ -20,6 +20,7 @@ type InstallerType string
 
 const (
 	InstallerTypeExecutable InstallerType = "Executable"
+	InstallerTypeMSI        InstallerType = "MSI"
 )
 
 type InstallerArchitecture string

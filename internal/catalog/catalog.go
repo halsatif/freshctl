@@ -64,8 +64,11 @@ func detect(app Application, method DetectMethod, value string) Application {
 	return app
 }
 
-func withProvider(app Application, provider Provider) Application {
-	app.Providers = []Provider{provider}
+func withDirectProvider(app Application, metadata DirectInstallerMetadata) Application {
+	app.Providers = []Provider{
+		directProvider(app.ID, metadata),
+		chocolateyProvider(app.ID),
+	}
 	return app
 }
 
@@ -89,10 +92,31 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Web browsers for everyday browsing, privacy-focused workflows, and alternate browser engines.",
 			Apps: []Application{
-				detect(app("Google Chrome", "googlechrome", "browser", "Google's web browser."), DetectRegistry, "Google Chrome"),
+				withDirectProvider(
+					detect(app("Google Chrome", "googlechrome", "browser", "Google's web browser."), DetectRegistry, "Google Chrome"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							{URL: "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi", Architecture: InstallerArchitectureX64},
+						},
+						Filename:      "GoogleChrome.msi",
+						SilentArgs:    []string{"/qn", "/norestart"},
+						InstallerType: InstallerTypeMSI,
+					},
+				),
 				app("Opera", "opera", "browser", "Opera web browser."),
 				app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."),
-				detect(app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."), DetectRegistry, "Mozilla Firefox"),
+				withDirectProvider(
+					detect(app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."), DetectRegistry, "Mozilla Firefox"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							{URL: "https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US", Architecture: InstallerArchitectureX64},
+							{URL: "https://download.mozilla.org/?product=firefox-latest-ssl&os=win64-aarch64&lang=en-US", Architecture: InstallerArchitectureARM64},
+						},
+						Filename:      "FirefoxSetup.exe",
+						SilentArgs:    []string{"/S"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				app("Waterfox", "waterfox", "browser", "Firefox-derived browser focused on customization."),
 				detect(app("Microsoft Edge", "microsoft-edge", "browser", "Microsoft Edge browser."), DetectRegistry, "Microsoft Edge"),
 				detect(app("Brave Browser", "brave", "browser", "Privacy-focused Chromium browser."), DetectRegistry, "Brave"),
@@ -106,7 +130,17 @@ func Default() []Category {
 			CategoryType: "category",
 			Description:  "Messaging, voice chat, video meetings, and team communication apps.",
 			Apps: []Application{
-				detect(app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."), DetectRegistry, "Telegram Desktop"),
+				withDirectProvider(
+					detect(app("Telegram Desktop", "telegram", "communication", "Telegram desktop messenger."), DetectRegistry, "Telegram Desktop"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							{URL: "https://telegram.org/dl/desktop/win64", Architecture: InstallerArchitectureX64},
+						},
+						Filename:      "TelegramSetup.exe",
+						SilentArgs:    []string{"/VERYSILENT", "/NORESTART"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				detect(app("Signal", "signal", "communication", "Private messaging desktop app."), DetectRegistry, "Signal"),
 				app("Element", "element-desktop", "communication", "Matrix-based secure chat client."),
 				app("Zoom", "zoom", "communication", "Video meetings and conferencing app."),
@@ -123,9 +157,9 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Code editors and development workspaces.",
 					Apps: []Application{
-						withProvider(
+						withDirectProvider(
 							detect(app("Visual Studio Code", "vscode", "editor", "Code editor with extensions and integrated tools."), DetectRegistry, "Visual Studio Code"),
-							directProvider("vscode", DirectInstallerMetadata{
+							DirectInstallerMetadata{
 								Downloads: []DirectDownload{
 									{URL: "https://update.code.visualstudio.com/latest/win32-x64/stable", Architecture: InstallerArchitectureX64},
 									{URL: "https://update.code.visualstudio.com/latest/win32-arm64/stable", Architecture: InstallerArchitectureARM64},
@@ -133,7 +167,7 @@ func Default() []Category {
 								Filename:      "VSCodeSetup.exe",
 								SilentArgs:    []string{"/VERYSILENT", "/NORESTART", "/MERGETASKS=!runcode"},
 								InstallerType: InstallerTypeExecutable,
-							}),
+							},
 						),
 						app("Zed", "zed-editor", "editor", "Fast collaborative code editor."),
 						app("Sublime Text", "sublimetext4", "editor", "Fast text and code editor."),
@@ -403,7 +437,17 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Password managers and malware removal tools.",
 					Apps: []Application{
-						app("Bitwarden", "bitwarden", "security", "Password manager desktop app."),
+						withDirectProvider(
+							detect(app("Bitwarden", "bitwarden", "security", "Password manager desktop app."), DetectRegistry, "Bitwarden"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									{URL: "https://vault.bitwarden.com/download/?app=desktop&platform=windows", Architecture: InstallerArchitectureAny},
+								},
+								Filename:      "BitwardenInstaller.exe",
+								SilentArgs:    []string{"/allusers", "/S"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 						app("KeePass 2", "keepass", "security", "Local password manager."),
 						app("BleachBit", "bleachbit", "security", "Privacy-focused cleanup utility."),
 						app("SimpleWall", "simplewall", "security", "Windows Filtering Platform firewall control tool."),
@@ -418,7 +462,19 @@ func Default() []Category {
 						app("WinSCP", "winscp", "network", "SFTP, SCP, FTP, and WebDAV file transfer client."),
 						app("PuTTY", "putty", "network", "SSH and Telnet client."),
 						app("qBittorrent", "qbittorrent", "network", "BitTorrent client."),
-						app("Tailscale", "tailscale", "network", "Mesh VPN client."),
+						withDirectProvider(
+							detect(app("Tailscale", "tailscale", "network", "Mesh VPN client."), DetectRegistry, "Tailscale"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									{URL: "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi", Architecture: InstallerArchitectureX64},
+									// Tailscale explicitly directs Windows ARM64 users to its x86 MSI.
+									{URL: "https://pkgs.tailscale.com/stable/tailscale-setup-latest-x86.msi", Architecture: InstallerArchitectureARM64},
+								},
+								Filename:      "Tailscale.msi",
+								SilentArgs:    []string{"/qn", "/norestart"},
+								InstallerType: InstallerTypeMSI,
+							},
+						),
 						app("WireGuard", "wireguard", "network", "WireGuard VPN client."),
 						app("ZeroTier", "zerotier-one", "network", "Virtual networking and mesh VPN client."),
 						app("Wireshark", "wireshark", "network", "Network protocol analyzer."),

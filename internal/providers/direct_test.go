@@ -48,7 +48,19 @@ func TestDirectRejectsUnsupportedMetadata(t *testing.T) {
 		{
 			name: "unsupported installer type",
 			mutate: func(provider *catalog.Provider) {
-				provider.Metadata.Direct.InstallerType = "MSI"
+				provider.Metadata.Direct.InstallerType = "Archive"
+			},
+		},
+		{
+			name: "missing filename",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Filename = ""
+			},
+		},
+		{
+			name: "filename extension mismatch",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Filename = "TestSetup.msi"
 			},
 		},
 		{
@@ -102,7 +114,7 @@ func TestDirectInstallerErrorPropagation(t *testing.T) {
 	direct.downloadFile = func(context.Context, string, string, func(string)) error {
 		return nil
 	}
-	direct.runInstaller = func(context.Context, string, []string, func(string)) error {
+	direct.runInstaller = func(context.Context, catalog.InstallerType, string, []string, func(string)) error {
 		return runnerErr
 	}
 	direct.detectInstalled = func(catalog.Application) bool {
@@ -126,7 +138,7 @@ func TestDirectDownloadErrorIsReadable(t *testing.T) {
 	direct.downloadFile = func(context.Context, string, string, func(string)) error {
 		return downloadErr
 	}
-	direct.runInstaller = func(context.Context, string, []string, func(string)) error {
+	direct.runInstaller = func(context.Context, catalog.InstallerType, string, []string, func(string)) error {
 		t.Fatal("installer should not run after download failure")
 		return nil
 	}
@@ -146,7 +158,7 @@ func TestDirectDetectionFailureAfterSuccessfulInstaller(t *testing.T) {
 	direct.downloadFile = func(context.Context, string, string, func(string)) error {
 		return nil
 	}
-	direct.runInstaller = func(context.Context, string, []string, func(string)) error {
+	direct.runInstaller = func(context.Context, catalog.InstallerType, string, []string, func(string)) error {
 		return nil
 	}
 	direct.detectInstalled = func(catalog.Application) bool {
@@ -170,7 +182,9 @@ func TestDirectUsesArchitectureDownloadAndSilentArguments(t *testing.T) {
 		return nil
 	}
 	var gotArgs []string
-	direct.runInstaller = func(_ context.Context, _ string, args []string, _ func(string)) error {
+	var gotInstallerType catalog.InstallerType
+	direct.runInstaller = func(_ context.Context, installerType catalog.InstallerType, _ string, args []string, _ func(string)) error {
+		gotInstallerType = installerType
 		gotArgs = append([]string{}, args...)
 		return nil
 	}
@@ -186,6 +200,84 @@ func TestDirectUsesArchitectureDownloadAndSilentArguments(t *testing.T) {
 	}
 	if strings.Join(gotArgs, " ") != "/VERYSILENT /NORESTART" {
 		t.Fatalf("unexpected silent arguments %q", gotArgs)
+	}
+	if gotInstallerType != catalog.InstallerTypeExecutable {
+		t.Fatalf("unexpected installer type %q", gotInstallerType)
+	}
+}
+
+func TestDirectInstallerCommandSupportsExecutableAndMSI(t *testing.T) {
+	tests := []struct {
+		name          string
+		installerType catalog.InstallerType
+		path          string
+		args          []string
+		wantCommand   string
+		wantArgs      string
+	}{
+		{
+			name:          "executable",
+			installerType: catalog.InstallerTypeExecutable,
+			path:          `C:\\Temp\\setup.exe`,
+			args:          []string{"/S"},
+			wantCommand:   `C:\\Temp\\setup.exe`,
+			wantArgs:      "/S",
+		},
+		{
+			name:          "msi",
+			installerType: catalog.InstallerTypeMSI,
+			path:          `C:\\Temp\\setup.msi`,
+			args:          []string{"/qn", "/norestart"},
+			wantCommand:   "msiexec.exe",
+			wantArgs:      `/i C:\\Temp\\setup.msi /qn /norestart`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command, args, err := directInstallerCommand(test.installerType, test.path, test.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if command != test.wantCommand || strings.Join(args, " ") != test.wantArgs {
+				t.Fatalf("got %q %q, want %q %q", command, args, test.wantCommand, test.wantArgs)
+			}
+		})
+	}
+}
+
+func TestDirectMSIMetadataValidation(t *testing.T) {
+	direct := NewDirect()
+	app, provider := validDirectTestMetadata()
+	provider.Metadata.Direct.InstallerType = catalog.InstallerTypeMSI
+	provider.Metadata.Direct.Filename = "TestSetup.msi"
+
+	if err := direct.Validate(app, provider); err != nil {
+		t.Fatalf("expected valid MSI metadata, got %v", err)
+	}
+}
+
+func TestDirectCleansTemporaryDirectoryAfterInstall(t *testing.T) {
+	app, provider := validDirectTestMetadata()
+	direct := testDirectProvider(t)
+	var tempDir string
+	direct.makeTempDir = func(_ string, _ string) (string, error) {
+		tempDir = filepath.Join(t.TempDir(), "direct")
+		return tempDir, os.MkdirAll(tempDir, 0o755)
+	}
+	direct.downloadFile = func(_ context.Context, _ string, destination string, _ func(string)) error {
+		return os.WriteFile(destination, []byte("installer"), 0o600)
+	}
+	direct.runInstaller = func(context.Context, catalog.InstallerType, string, []string, func(string)) error {
+		return nil
+	}
+	direct.detectInstalled = func(catalog.Application) bool { return true }
+
+	if err := direct.Install(context.Background(), app, provider, InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
+		t.Fatalf("temporary directory should be removed, stat error: %v", err)
 	}
 }
 

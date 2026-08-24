@@ -5,7 +5,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "googlechrome",
     "category": "browser",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Google's web browser."
   },
@@ -32,7 +32,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "firefox",
     "category": "browser",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Mozilla Firefox web browser."
   },
@@ -95,7 +95,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "telegram",
     "category": "communication",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Telegram desktop messenger."
   },
@@ -1238,7 +1238,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "bitwarden",
     "category": "security",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Password manager desktop app."
   },
@@ -1310,7 +1310,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "tailscale",
     "category": "network",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Mesh VPN client."
   },
