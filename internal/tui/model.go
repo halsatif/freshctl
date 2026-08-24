@@ -331,6 +331,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	}
+	if m.screen == screenCatalog && m.searchFocused {
+		return m.handleCatalogKey(msg)
+	}
 	if m.screen == screenHelp {
 		if key == "esc" || key == "?" {
 			m.screen = m.helpBack
@@ -438,25 +441,28 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.notice = ""
 
 	if m.searchFocused {
-		switch keyName(msg) {
-		case "up", "k":
+		if msg.Alt {
+			return m, nil
+		}
+		switch msg.Type {
+		case tea.KeyUp:
 			m.moveCatalogCursor(-1)
-		case "down", "j":
+		case tea.KeyDown:
 			m.moveCatalogCursor(1)
-		case "enter":
+		case tea.KeyEnter:
 			m.searchFocused = false
 			m.searchCursor = false
-		case "esc":
+		case tea.KeyEsc:
 			m.searchFocused = false
 			m.searchCursor = false
 			m.searchQuery = ""
 			m.catalogCursor = 0
 			m.catalogScroll = 0
-		case " ":
+		case tea.KeySpace:
 			m.searchQuery += " "
 			m.clampCatalogCursor()
 			m.ensureCatalogCursorVisible()
-		case "backspace":
+		case tea.KeyBackspace:
 			if len(m.searchQuery) > 0 {
 				m.searchQuery = dropLastRune(m.searchQuery)
 				m.clampCatalogCursor()

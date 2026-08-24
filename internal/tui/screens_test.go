@@ -2249,6 +2249,102 @@ func TestCatalogSearchTypingAppendsLetters(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchPrintableHotkeysAreTypedBeforeGlobalRouting(t *testing.T) {
+	tests := []struct {
+		name  string
+		input rune
+	}{
+		{name: "vim down", input: 'j'},
+		{name: "vim up", input: 'k'},
+		{name: "logs", input: 'l'},
+		{name: "quit", input: 'q'},
+		{name: "skip", input: 's'},
+		{name: "help", input: '?'},
+		{name: "russian physical j", input: 'о'},
+		{name: "russian physical k", input: 'л'},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model := Model{
+				screen:        screenCatalog,
+				width:         100,
+				height:        32,
+				categories:    catalog.Default(),
+				catalogMode:   catalogModeFull,
+				catalogCursor: 0,
+				searchFocused: true,
+				selected:      map[string]bool{},
+			}
+
+			updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{test.input}})
+			got := updated.(Model)
+			if got.searchQuery != string(test.input) {
+				t.Fatalf("printable key should be inserted verbatim, got query %q", got.searchQuery)
+			}
+			if got.screen != screenCatalog || !got.searchFocused {
+				t.Fatalf("printable key should not trigger a global action, screen=%v focused=%v", got.screen, got.searchFocused)
+			}
+			if got.catalogCursor != 0 {
+				t.Fatalf("printable key should not navigate while search is focused, cursor=%d", got.catalogCursor)
+			}
+			if cmd != nil {
+				t.Fatalf("printable key should not return a global command, got %T", cmd)
+			}
+		})
+	}
+}
+
+func TestCatalogSearchArrowKeysStillNavigateResults(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		catalogCursor: 1,
+		searchFocused: true,
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	got := updated.(Model)
+	if got.catalogCursor != 2 || got.searchQuery != "" {
+		t.Fatalf("down should navigate search results without editing query, cursor=%d query=%q", got.catalogCursor, got.searchQuery)
+	}
+
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyUp})
+	got = updated.(Model)
+	if got.catalogCursor != 1 || got.searchQuery != "" {
+		t.Fatalf("up should navigate search results without editing query, cursor=%d query=%q", got.catalogCursor, got.searchQuery)
+	}
+}
+
+func TestCatalogSearchExitPreservesSelectionAndRestoresHotkeys(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "git",
+		selected:      map[string]bool{"firefox": true},
+	}
+
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.searchFocused || got.searchQuery != "" || !got.selected["firefox"] {
+		t.Fatalf("escape should clear only search state, focused=%v query=%q selected=%v", got.searchFocused, got.searchQuery, got.selected)
+	}
+
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	got = updated.(Model)
+	if got.catalogCursor != 1 || got.searchQuery != "" {
+		t.Fatalf("j should navigate again after search closes, cursor=%d query=%q", got.catalogCursor, got.searchQuery)
+	}
+}
+
 func TestCatalogSearchShowsBlinkingInputCursor(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
