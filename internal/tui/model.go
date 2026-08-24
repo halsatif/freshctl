@@ -253,12 +253,26 @@ func keyName(msg tea.KeyMsg) string {
 	return key
 }
 
+var controlKeyPressed = platformControlKeyPressed
+
 func dropLastRune(value string) string {
 	if value == "" {
 		return ""
 	}
 	runes := []rune(value)
 	return string(runes[:len(runes)-1])
+}
+
+func dropLastWord(value string) string {
+	runes := []rune(value)
+	end := len(runes)
+	for end > 0 && unicode.IsSpace(runes[end-1]) {
+		end--
+	}
+	for end > 0 && !unicode.IsSpace(runes[end-1]) {
+		end--
+	}
+	return string(runes[:end])
 }
 
 func searchTextInput(msg tea.KeyMsg) (string, bool) {
@@ -464,7 +478,11 @@ func (m Model) handleCatalogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureCatalogCursorVisible()
 		case tea.KeyBackspace:
 			if len(m.searchQuery) > 0 {
-				m.searchQuery = dropLastRune(m.searchQuery)
+				if controlKeyPressed() {
+					m.searchQuery = dropLastWord(m.searchQuery)
+				} else {
+					m.searchQuery = dropLastRune(m.searchQuery)
+				}
 				m.clampCatalogCursor()
 				m.ensureCatalogCursorVisible()
 			}

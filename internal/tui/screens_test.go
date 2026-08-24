@@ -2506,6 +2506,60 @@ func TestBackspaceEditsCatalogSearch(t *testing.T) {
 	}
 }
 
+func TestCtrlBackspaceDeletesPreviousSearchWord(t *testing.T) {
+	previousControlKeyPressed := controlKeyPressed
+	controlKeyPressed = func() bool { return true }
+	t.Cleanup(func() { controlKeyPressed = previousControlKeyPressed })
+
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "visual studio",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	got := updated.(Model)
+	if got.searchQuery != "visual " {
+		t.Fatalf("ctrl+backspace should delete the previous word, got %q", got.searchQuery)
+	}
+	if !got.searchFocused {
+		t.Fatal("ctrl+backspace should keep search focused")
+	}
+}
+
+func TestCtrlWDoesNothingInCatalogSearch(t *testing.T) {
+	model := Model{
+		screen:        screenCatalog,
+		width:         100,
+		height:        32,
+		categories:    catalog.Default(),
+		catalogMode:   catalogModeFull,
+		searchFocused: true,
+		searchQuery:   "visual studio",
+		selected:      map[string]bool{},
+	}
+
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlW})
+	got := updated.(Model)
+	if got.searchQuery != "visual studio" {
+		t.Fatalf("ctrl+w should not edit search, got %q", got.searchQuery)
+	}
+	if !got.searchFocused {
+		t.Fatal("ctrl+w should keep search focused")
+	}
+}
+
+func TestDropLastWordHandlesUnicode(t *testing.T) {
+	if got := dropLastWord("поиск браузер"); got != "поиск " {
+		t.Fatalf("word deletion should be unicode-safe, got %q", got)
+	}
+}
+
 func TestBackspaceRemovesOneUnicodeRuneFromCatalogSearch(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,
