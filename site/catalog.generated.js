@@ -23,7 +23,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "opera-gx",
     "category": "browser",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Opera browser tuned for gaming."
   },
@@ -59,7 +59,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "brave",
     "category": "browser",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Privacy-focused Chromium browser."
   },
@@ -221,7 +221,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "git",
     "category": "version-control",
     "type": "CLITool",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Command-line version control tool. Run with git."
   },
@@ -608,7 +608,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "insomnia-rest-api-client",
     "category": "database",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "REST, GraphQL, and API client."
   },
@@ -644,7 +644,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "mongodb-compass",
     "category": "database",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "MongoDB desktop GUI client."
   },
@@ -734,7 +734,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "obs-studio",
     "category": "media",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Recording and streaming studio."
   },
@@ -869,7 +869,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "screentogif",
     "category": "graphics",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Screen, webcam, and sketchboard recorder."
   },
@@ -878,7 +878,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "flameshot",
     "category": "graphics",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Screenshot tool with annotation features."
   },
@@ -923,7 +923,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "prismlauncher",
     "category": "gaming",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Minecraft launcher for multiple instances and modded setups."
   },
@@ -950,7 +950,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "sunshine",
     "category": "gaming",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Self-hosted game streaming host."
   },
@@ -1085,7 +1085,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "powertoys",
     "category": "utility",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Microsoft utilities for Windows power users."
   },
@@ -1355,7 +1355,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "localsend",
     "category": "network",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Local network file sharing app."
   },
@@ -1436,7 +1436,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "notepadplusplus",
     "category": "editor",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Fast text and source code editor."
   },

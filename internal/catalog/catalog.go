@@ -72,6 +72,14 @@ func withDirectProvider(app Application, metadata DirectInstallerMetadata) Appli
 	return app
 }
 
+func githubRelease(repository, assetPattern string, architecture InstallerArchitecture) DirectDownload {
+	return DirectDownload{
+		GitHubRepository:   repository,
+		GitHubAssetPattern: assetPattern,
+		Architecture:       architecture,
+	}
+}
+
 func packageWithType(name, id, category, description string, packageType PackageType) Application {
 	return Application{
 		ID:           id,
@@ -104,7 +112,17 @@ func Default() []Category {
 					},
 				),
 				app("Opera", "opera", "browser", "Opera web browser."),
-				app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."),
+				withDirectProvider(
+					detect(app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."), DetectRegistry, "Opera GX Stable"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							{URL: "https://net.geo.opera.com/opera_gx/stable/windows", Architecture: InstallerArchitectureX64},
+						},
+						Filename:      "OperaGXSetup.exe",
+						SilentArgs:    []string{"/silent", "/allusers=1"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				withDirectProvider(
 					detect(app("Mozilla Firefox", "firefox", "browser", "Mozilla Firefox web browser."), DetectRegistry, "Mozilla Firefox"),
 					DirectInstallerMetadata{
@@ -119,7 +137,18 @@ func Default() []Category {
 				),
 				app("Waterfox", "waterfox", "browser", "Firefox-derived browser focused on customization."),
 				detect(app("Microsoft Edge", "microsoft-edge", "browser", "Microsoft Edge browser."), DetectRegistry, "Microsoft Edge"),
-				detect(app("Brave Browser", "brave", "browser", "Privacy-focused Chromium browser."), DetectRegistry, "Brave"),
+				withDirectProvider(
+					detect(app("Brave Browser", "brave", "browser", "Privacy-focused Chromium browser."), DetectRegistry, "Brave"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							githubRelease("brave/brave-browser", `^BraveBrowserStandaloneSetup\.exe$`, InstallerArchitectureX64),
+							githubRelease("brave/brave-browser", `^BraveBrowserStandaloneSetupArm64\.exe$`, InstallerArchitectureARM64),
+						},
+						Filename:      "BraveSetup.exe",
+						SilentArgs:    []string{"/silent", "/install"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				app("Vivaldi", "vivaldi", "browser", "Highly customizable browser."),
 				app("Tor Browser", "tor-browser", "browser", "Browser for Tor network access."),
 				prerelease(detect(app("Zen Browser", "zen-browser", "browser", "Modern Firefox-based browser."), DetectRegistry, "Zen Browser")),
@@ -184,7 +213,20 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Tools for tracking source code changes.",
 					Apps: []Application{
-						detect(cli("Git", "git", "version-control", "Command-line version control tool. Run with git."), DetectPath, "git.exe"),
+						withDirectProvider(
+							detect(cli("Git", "git", "version-control", "Command-line version control tool. Run with git."), DetectRegistry, "Git version"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("git-for-windows/git", `^Git-.*-64-bit\.exe$`, InstallerArchitectureX64),
+									githubRelease("git-for-windows/git", `^Git-.*-arm64\.exe$`, InstallerArchitectureARM64),
+								},
+								Filename: "GitSetup.exe",
+								SilentArgs: []string{
+									"/VERYSILENT", "/NORESTART", "/NOCANCEL", "/SP-", "/CLOSEAPPLICATIONS",
+								},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 					},
 				},
 				{
@@ -314,11 +356,31 @@ func Default() []Category {
 					Apps: []Application{
 						app("Postman", "postman", "database", "API development and testing client."),
 						app("Bruno", "bruno", "database", "Git-friendly API client."),
-						app("Insomnia", "insomnia-rest-api-client", "database", "REST, GraphQL, and API client."),
+						withDirectProvider(
+							detect(app("Insomnia", "insomnia-rest-api-client", "database", "REST, GraphQL, and API client."), DetectRegistry, "Insomnia"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("Kong/insomnia", `^Insomnia\.Core-[0-9].*\.exe$`, InstallerArchitectureX64),
+								},
+								Filename:      "InsomniaSetup.exe",
+								SilentArgs:    []string{"/S"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 						app("DBeaver", "dbeaver", "database", "Universal database client."),
 						app("PostgreSQL", "postgresql", "database", "PostgreSQL database server."),
 						app("MySQL", "mysql", "database", "MySQL database server."),
-						app("MongoDB Compass", "mongodb-compass", "database", "MongoDB desktop GUI client."),
+						withDirectProvider(
+							detect(app("MongoDB Compass", "mongodb-compass", "database", "MongoDB desktop GUI client."), DetectRegistry, "MongoDB Compass"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("mongodb-js/compass", `^mongodb-compass-[0-9].*-win32-x64\.msi$`, InstallerArchitectureX64),
+								},
+								Filename:      "MongoDBCompass.msi",
+								SilentArgs:    []string{"/qn", "/norestart"},
+								InstallerType: InstallerTypeMSI,
+							},
+						),
 					},
 				},
 			},
@@ -342,7 +404,17 @@ func Default() []Category {
 						app("K-Lite Codecs", "k-litecodecpackfull", "media", "Codec pack for broad video and audio playback support."),
 						app("mpv", "mpvio", "media", "Minimal, keyboard-driven media player for audio and video playback."),
 						detect(app("Spotify", "spotify", "media", "Music streaming desktop app."), DetectRegistry, "Spotify"),
-						detect(app("OBS Studio", "obs-studio", "media", "Recording and streaming studio."), DetectRegistry, "OBS Studio"),
+						withDirectProvider(
+							detect(app("OBS Studio", "obs-studio", "media", "Recording and streaming studio."), DetectRegistry, "OBS Studio"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("obsproject/obs-studio", `^OBS-Studio-.*-Windows-x64-Installer\.exe$`, InstallerArchitectureX64),
+								},
+								Filename:      "OBSStudioSetup.exe",
+								SilentArgs:    []string{"/S"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 						app("Kdenlive", "kdenlive", "media", "Open source video editor."),
 						detect(cli("yt-dlp", "yt-dlp", "media", "Command-line video downloader. Run with yt-dlp."), DetectPath, "yt-dlp.exe"),
 						detect(cli("FFmpeg", "ffmpeg", "media", "Command-line audio and video toolkit. Run with ffmpeg."), DetectPath, "ffmpeg.exe"),
@@ -364,8 +436,29 @@ func Default() []Category {
 						app("Lightshot", "lightshot", "graphics", "Simple screenshot capture and sharing tool."),
 						app("ImageGlass", "imageglass", "graphics", "Modern image viewer."),
 						detect(app("ShareX", "sharex", "graphics", "Screenshot, screen capture, and sharing tool."), DetectRegistry, "ShareX"),
-						app("ScreenToGif", "screentogif", "graphics", "Screen, webcam, and sketchboard recorder."),
-						app("Flameshot", "flameshot", "graphics", "Screenshot tool with annotation features."),
+						withDirectProvider(
+							detect(app("ScreenToGif", "screentogif", "graphics", "Screen, webcam, and sketchboard recorder."), DetectRegistry, "ScreenToGif"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("NickeManarin/ScreenToGif", `^ScreenToGif\.[0-9][0-9.]*\.Setup\.x64\.msi$`, InstallerArchitectureX64),
+									githubRelease("NickeManarin/ScreenToGif", `^ScreenToGif\.[0-9][0-9.]*\.Setup\.Arm64\.msi$`, InstallerArchitectureARM64),
+								},
+								Filename:      "ScreenToGif.msi",
+								SilentArgs:    []string{"/qn", "/norestart"},
+								InstallerType: InstallerTypeMSI,
+							},
+						),
+						withDirectProvider(
+							detect(app("Flameshot", "flameshot", "graphics", "Screenshot tool with annotation features."), DetectRegistry, "Flameshot"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("flameshot-org/flameshot", `^Flameshot-.*-win64\.msi$`, InstallerArchitectureX64),
+								},
+								Filename:      "Flameshot.msi",
+								SilentArgs:    []string{"/qn", "/norestart"},
+								InstallerType: InstallerTypeMSI,
+							},
+						),
 					},
 				},
 				{
@@ -386,10 +479,32 @@ func Default() []Category {
 			Apps: []Application{
 				detect(app("Steam", "steam", "gaming", "Steam game launcher and store."), DetectRegistry, "Steam"),
 				detect(app("Heroic Games Launcher", "heroic-games-launcher", "gaming", "Open source launcher for Epic, GOG, and Amazon games."), DetectRegistry, "Heroic"),
-				detect(app("Prism Launcher", "prismlauncher", "gaming", "Minecraft launcher for multiple instances and modded setups."), DetectRegistry, "Prism Launcher"),
+				withDirectProvider(
+					detect(app("Prism Launcher", "prismlauncher", "gaming", "Minecraft launcher for multiple instances and modded setups."), DetectRegistry, "Prism Launcher"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							githubRelease("PrismLauncher/PrismLauncher", `^PrismLauncher-Windows-MSVC-Setup-.*\.exe$`, InstallerArchitectureX64),
+							githubRelease("PrismLauncher/PrismLauncher", `^PrismLauncher-Windows-MSVC-arm64-Setup-.*\.exe$`, InstallerArchitectureARM64),
+						},
+						Filename:      "PrismLauncherSetup.exe",
+						SilentArgs:    []string{"/S"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				detect(app("Discord", "discord", "gaming", "Voice and chat app for communities."), DetectRegistry, "Discord"),
 				app("Moonlight", "moonlight", "gaming", "GameStream client for remote gaming."),
-				app("Sunshine", "sunshine", "gaming", "Self-hosted game streaming host."),
+				withDirectProvider(
+					detect(app("Sunshine", "sunshine", "gaming", "Self-hosted game streaming host."), DetectRegistry, "Sunshine"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							githubRelease("LizardByte/Sunshine", `^Sunshine-Windows-AMD64-installer\.msi$`, InstallerArchitectureX64),
+							githubRelease("LizardByte/Sunshine", `^Sunshine-Windows-ARM64-installer\.msi$`, InstallerArchitectureARM64),
+						},
+						Filename:      "Sunshine.msi",
+						SilentArgs:    []string{"/qn", "/norestart"},
+						InstallerType: InstallerTypeMSI,
+					},
+				),
 			},
 		},
 		{
@@ -423,7 +538,18 @@ func Default() []Category {
 						detect(app("WizTree", "wiztree", "utility", "Fast disk space analyzer."), DetectRegistry, "WizTree"),
 						app("Glary Utilities Free", "glaryutilities-free", "utility", "System cleanup and optimization utility."),
 						app("Open-Shell", "open-shell", "utility", "Classic Start menu and shell enhancements."),
-						detect(app("PowerToys", "powertoys", "utility", "Microsoft utilities for Windows power users."), DetectRegistry, "PowerToys"),
+						withDirectProvider(
+							detect(app("PowerToys", "powertoys", "utility", "Microsoft utilities for Windows power users."), DetectRegistry, "PowerToys"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("microsoft/PowerToys", `^PowerToysSetup-.*-x64\.exe$`, InstallerArchitectureX64),
+									githubRelease("microsoft/PowerToys", `^PowerToysSetup-.*-arm64\.exe$`, InstallerArchitectureARM64),
+								},
+								Filename:      "PowerToysSetup.exe",
+								SilentArgs:    []string{"/quiet", "/norestart"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 						app("Google Earth", "googleearthpro", "utility", "Desktop globe, maps, and geographic exploration app."),
 						app("AutoHotkey", "autohotkey", "utility", "Automation and hotkey scripting tool."),
 						app("Ventoy", "ventoy", "utility", "Multiboot USB drive creator."),
@@ -496,7 +622,17 @@ func Default() []Category {
 						app("ZeroTier", "zerotier-one", "network", "Virtual networking and mesh VPN client."),
 						app("Wireshark", "wireshark", "network", "Network protocol analyzer."),
 						cli("Nmap", "nmap", "network", "Network discovery and security scanner."),
-						app("LocalSend", "localsend", "network", "Local network file sharing app."),
+						withDirectProvider(
+							detect(app("LocalSend", "localsend", "network", "Local network file sharing app."), DetectRegistry, "LocalSend"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("localsend/localsend", `^LocalSend-.*-windows-x86-64-unsigned\.exe$`, InstallerArchitectureX64),
+								},
+								Filename:      "LocalSendSetup.exe",
+								SilentArgs:    []string{"/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 					},
 				},
 				{
@@ -519,7 +655,18 @@ func Default() []Category {
 					CategoryType: "subcategory",
 					Description:  "Text editors and code-oriented desktop apps.",
 					Apps: []Application{
-						detect(app("Notepad++", "notepadplusplus", "editor", "Fast text and source code editor."), DetectRegistry, "Notepad++"),
+						withDirectProvider(
+							detect(app("Notepad++", "notepadplusplus", "editor", "Fast text and source code editor."), DetectRegistry, "Notepad++"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									githubRelease("notepad-plus-plus/notepad-plus-plus", `^npp\..*\.Installer\.x64\.exe$`, InstallerArchitectureX64),
+									githubRelease("notepad-plus-plus/notepad-plus-plus", `^npp\..*\.Installer\.arm64\.exe$`, InstallerArchitectureARM64),
+								},
+								Filename:      "NotepadPlusPlusSetup.exe",
+								SilentArgs:    []string{"/S"},
+								InstallerType: InstallerTypeExecutable,
+							},
+						),
 						app("Cursor", "cursoride", "editor", "AI-powered code editor based on VS Code."),
 						app("WinMerge", "winmerge", "editor", "File and folder comparison tool."),
 					},

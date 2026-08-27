@@ -32,8 +32,10 @@ const (
 )
 
 type DirectDownload struct {
-	URL          string
-	Architecture InstallerArchitecture
+	URL                string
+	GitHubRepository   string
+	GitHubAssetPattern string
+	Architecture       InstallerArchitecture
 }
 
 type DirectInstallerMetadata struct {

@@ -32,6 +32,20 @@ func TestDirectMetadataValidation(t *testing.T) {
 	}
 }
 
+func TestDirectGitHubReleaseMetadataValidation(t *testing.T) {
+	direct := NewDirect()
+	app, provider := validDirectTestMetadata()
+	provider.Metadata.Direct.Downloads[0] = catalog.DirectDownload{
+		GitHubRepository:   "owner/project",
+		GitHubAssetPattern: `^Setup-.*-x64\.exe$`,
+		Architecture:       catalog.InstallerArchitectureX64,
+	}
+
+	if err := direct.Validate(app, provider); err != nil {
+		t.Fatalf("expected valid GitHub release metadata, got %v", err)
+	}
+}
+
 func TestDirectRejectsUnsupportedMetadata(t *testing.T) {
 	app, provider := validDirectTestMetadata()
 	tests := []struct {
@@ -73,6 +87,35 @@ func TestDirectRejectsUnsupportedMetadata(t *testing.T) {
 			name: "insecure download URL",
 			mutate: func(provider *catalog.Provider) {
 				provider.Metadata.Direct.Downloads[0].URL = "http://example.test/setup.exe"
+			},
+		},
+		{
+			name: "missing download source",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Downloads[0].URL = ""
+			},
+		},
+		{
+			name: "download with URL and GitHub source",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Downloads[0].GitHubRepository = "owner/project"
+				provider.Metadata.Direct.Downloads[0].GitHubAssetPattern = `^Setup\.exe$`
+			},
+		},
+		{
+			name: "invalid GitHub repository",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Downloads[0].URL = ""
+				provider.Metadata.Direct.Downloads[0].GitHubRepository = "missing-owner"
+				provider.Metadata.Direct.Downloads[0].GitHubAssetPattern = `^Setup\.exe$`
+			},
+		},
+		{
+			name: "invalid GitHub asset pattern",
+			mutate: func(provider *catalog.Provider) {
+				provider.Metadata.Direct.Downloads[0].URL = ""
+				provider.Metadata.Direct.Downloads[0].GitHubRepository = "owner/project"
+				provider.Metadata.Direct.Downloads[0].GitHubAssetPattern = `(`
 			},
 		},
 		{
@@ -203,6 +246,94 @@ func TestDirectUsesArchitectureDownloadAndSilentArguments(t *testing.T) {
 	}
 	if gotInstallerType != catalog.InstallerTypeExecutable {
 		t.Fatalf("unexpected installer type %q", gotInstallerType)
+	}
+}
+
+func TestDirectInstallUsesResolvedGitHubReleaseURL(t *testing.T) {
+	app, provider := validDirectTestMetadata()
+	provider.Metadata.Direct.Downloads[0] = catalog.DirectDownload{
+		GitHubRepository:   "owner/project",
+		GitHubAssetPattern: `^Setup-x64\.exe$`,
+		Architecture:       catalog.InstallerArchitectureX64,
+	}
+	direct := testDirectProvider(t)
+	direct.architecture = "amd64"
+	direct.resolveDownload = func(_ context.Context, download catalog.DirectDownload) (string, error) {
+		if download.GitHubRepository != "owner/project" || download.GitHubAssetPattern != `^Setup-x64\.exe$` {
+			t.Fatalf("unexpected GitHub release metadata %#v", download)
+		}
+		return "https://downloads.example/Setup-x64.exe", nil
+	}
+
+	var downloadedURL string
+	direct.downloadFile = func(_ context.Context, downloadURL, _ string, _ func(string)) error {
+		downloadedURL = downloadURL
+		return nil
+	}
+	direct.runInstaller = func(context.Context, catalog.InstallerType, string, []string, func(string)) error {
+		return nil
+	}
+	direct.detectInstalled = func(catalog.Application) bool { return true }
+
+	if err := direct.Install(context.Background(), app, provider, InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if downloadedURL != "https://downloads.example/Setup-x64.exe" {
+		t.Fatalf("installer should download the resolved GitHub asset, got %q", downloadedURL)
+	}
+}
+
+func TestResolveGitHubReleaseDownloadSelectsMatchingAsset(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/owner/project/releases/latest" {
+			t.Fatalf("unexpected GitHub API path %q", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"assets":[{"name":"Setup-arm64.exe","browser_download_url":"https://downloads.example/arm64.exe"},{"name":"Setup-x64.exe","browser_download_url":"https://downloads.example/x64.exe"}]}`))
+	}))
+	defer server.Close()
+
+	downloadURL, err := resolveGitHubReleaseDownload(context.Background(), catalog.DirectDownload{
+		GitHubRepository:   "owner/project",
+		GitHubAssetPattern: `^Setup-x64\.exe$`,
+	}, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if downloadURL != "https://downloads.example/x64.exe" {
+		t.Fatalf("unexpected resolved download URL %q", downloadURL)
+	}
+}
+
+func TestResolveGitHubReleaseDownloadRejectsMissingAsset(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"assets":[]}`))
+	}))
+	defer server.Close()
+
+	_, err := resolveGitHubReleaseDownload(context.Background(), catalog.DirectDownload{
+		GitHubRepository:   "owner/project",
+		GitHubAssetPattern: `^Setup-x64\.exe$`,
+	}, server.URL)
+	if err == nil || !strings.Contains(err.Error(), "no matching asset found") {
+		t.Fatalf("expected missing asset error, got %v", err)
+	}
+}
+
+func TestResolveGitHubReleaseDownloadRejectsAmbiguousPattern(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"assets":[{"name":"Setup-a.exe","browser_download_url":"https://downloads.example/a.exe"},{"name":"Setup-b.exe","browser_download_url":"https://downloads.example/b.exe"}]}`))
+	}))
+	defer server.Close()
+
+	_, err := resolveGitHubReleaseDownload(context.Background(), catalog.DirectDownload{
+		GitHubRepository:   "owner/project",
+		GitHubAssetPattern: `^Setup-.*\.exe$`,
+	}, server.URL)
+	if err == nil || !strings.Contains(err.Error(), "matched both") {
+		t.Fatalf("expected ambiguous asset error, got %v", err)
 	}
 }
 

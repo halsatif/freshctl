@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -23,12 +25,14 @@ var ErrUnsupportedDirectMetadata = errors.New("unsupported direct installer meta
 const (
 	directDownloadTimeout = 30 * time.Minute
 	directInstallTimeout  = 30 * time.Minute
+	githubAPIBaseURL      = "https://api.github.com"
 )
 
 type Direct struct {
 	architecture    string
 	makeTempDir     func(string, string) (string, error)
 	removeAll       func(string) error
+	resolveDownload func(context.Context, catalog.DirectDownload) (string, error)
 	downloadFile    func(context.Context, string, string, func(string)) error
 	runInstaller    func(context.Context, catalog.InstallerType, string, []string, func(string)) error
 	detectInstalled func(catalog.Application) bool
@@ -39,6 +43,7 @@ func NewDirect() *Direct {
 		architecture:    runtime.GOARCH,
 		makeTempDir:     os.MkdirTemp,
 		removeAll:       os.RemoveAll,
+		resolveDownload: resolveDirectDownload,
 		downloadFile:    downloadDirectInstaller,
 		runInstaller:    runDirectInstaller,
 		detectInstalled: detection.DetectInstalled,
@@ -105,9 +110,23 @@ func (d *Direct) Validate(app catalog.Application, provider catalog.Provider) er
 		default:
 			return directMetadataError("architecture %q is not supported", download.Architecture)
 		}
-		parsedURL, err := url.Parse(download.URL)
-		if err != nil || parsedURL.Host == "" || parsedURL.Scheme != "https" {
-			return directMetadataError("download URL %q is invalid", download.URL)
+		hasURL := strings.TrimSpace(download.URL) != ""
+		hasGitHub := strings.TrimSpace(download.GitHubRepository) != "" || strings.TrimSpace(download.GitHubAssetPattern) != ""
+		if hasURL == hasGitHub {
+			return directMetadataError("download must define exactly one source")
+		}
+		if hasURL {
+			parsedURL, err := url.Parse(download.URL)
+			if err != nil || parsedURL.Host == "" || parsedURL.Scheme != "https" {
+				return directMetadataError("download URL %q is invalid", download.URL)
+			}
+			continue
+		}
+		if !validGitHubRepository(download.GitHubRepository) {
+			return directMetadataError("GitHub repository %q is invalid", download.GitHubRepository)
+		}
+		if _, err := regexp.Compile(download.GitHubAssetPattern); err != nil {
+			return directMetadataError("GitHub asset pattern %q is invalid", download.GitHubAssetPattern)
 		}
 	}
 	return nil
@@ -166,9 +185,13 @@ func (d *Direct) install(ctx context.Context, app catalog.Application, provider 
 	}()
 
 	installerPath := filepath.Join(tempDir, metadata.Filename)
+	downloadURL, err := d.resolveDownload(ctx, download)
+	if err != nil {
+		return fmt.Errorf("resolve download for %s: %w", app.Name, err)
+	}
 
 	logLine(opts.Log, "downloading "+app.Name)
-	if err := d.downloadFile(ctx, download.URL, installerPath, opts.Log); err != nil {
+	if err := d.downloadFile(ctx, downloadURL, installerPath, opts.Log); err != nil {
 		return fmt.Errorf("download failed for %s: %w", app.Name, err)
 	}
 
@@ -181,6 +204,75 @@ func (d *Direct) install(ctx context.Context, app catalog.Application, provider 
 		return fmt.Errorf("installation completed but %s was not detected", app.Name)
 	}
 	return nil
+}
+
+func validGitHubRepository(repository string) bool {
+	valid, err := regexp.MatchString(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`, repository)
+	return err == nil && valid
+}
+
+func resolveDirectDownload(ctx context.Context, download catalog.DirectDownload) (string, error) {
+	if download.URL != "" {
+		return download.URL, nil
+	}
+	return resolveGitHubReleaseDownload(ctx, download, githubAPIBaseURL)
+}
+
+func resolveGitHubReleaseDownload(ctx context.Context, download catalog.DirectDownload, apiBaseURL string) (string, error) {
+	pattern, err := regexp.Compile(download.GitHubAssetPattern)
+	if err != nil {
+		return "", fmt.Errorf("invalid asset pattern: %w", err)
+	}
+
+	endpoint := strings.TrimRight(apiBaseURL, "/") + "/repos/" + download.GitHubRepository + "/releases/latest"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "freshctl")
+	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	client := &http.Client{Timeout: directDownloadTimeout}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("GitHub release request failed: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("GitHub release request returned %s", response.Status)
+	}
+
+	var release struct {
+		Assets []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(&release); err != nil {
+		return "", fmt.Errorf("decode GitHub release response: %w", err)
+	}
+
+	matchedName := ""
+	matchedURL := ""
+	for _, asset := range release.Assets {
+		if !pattern.MatchString(asset.Name) {
+			continue
+		}
+		if matchedURL != "" {
+			return "", fmt.Errorf("asset pattern matched both %q and %q in latest %s release", matchedName, asset.Name, download.GitHubRepository)
+		}
+		parsedURL, err := url.Parse(asset.BrowserDownloadURL)
+		if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" {
+			return "", fmt.Errorf("GitHub asset %q has an invalid download URL", asset.Name)
+		}
+		matchedName = asset.Name
+		matchedURL = asset.BrowserDownloadURL
+	}
+	if matchedURL != "" {
+		return matchedURL, nil
+	}
+	return "", fmt.Errorf("no matching asset found in latest %s release", download.GitHubRepository)
 }
 
 func selectDirectDownload(downloads []catalog.DirectDownload, goarch string) (catalog.DirectDownload, error) {
