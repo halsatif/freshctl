@@ -879,6 +879,85 @@ func TestCatalogBreadcrumbIncludesRoot(t *testing.T) {
 	}
 }
 
+func TestCatalogBackRestoresOpenedCategorySelection(t *testing.T) {
+	model := Model{
+		screen:      screenCatalog,
+		width:       100,
+		height:      32,
+		categories:  catalog.Default(),
+		catalogMode: catalogModeCategories,
+		selected:    map[string]bool{},
+	}
+
+	mediaIndex := -1
+	for index, category := range model.currentCategories() {
+		if category.Name == "Media" {
+			mediaIndex = index
+			break
+		}
+	}
+	if mediaIndex < 0 {
+		t.Fatal("Media category not found")
+	}
+
+	model.catalogCursor = mediaIndex
+	updated, _ := model.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEnter})
+	insideMedia := updated.(Model)
+	if insideMedia.currentBreadcrumb() != "Catalog > Media" {
+		t.Fatalf("enter should open Media, got %q", insideMedia.currentBreadcrumb())
+	}
+
+	updated, _ = insideMedia.handleCatalogKey(tea.KeyMsg{Type: tea.KeyEsc})
+	returned := updated.(Model)
+	if returned.currentBreadcrumb() != "Catalog" {
+		t.Fatalf("esc should return to the catalog root, got %q", returned.currentBreadcrumb())
+	}
+	if returned.catalogCursor != mediaIndex {
+		t.Fatalf("esc should restore the opened Media row, cursor=%d want=%d", returned.catalogCursor, mediaIndex)
+	}
+	if returned.currentCategories()[returned.catalogCursor].Name != "Media" {
+		t.Fatalf("restored cursor should point to Media, got %q", returned.currentCategories()[returned.catalogCursor].Name)
+	}
+}
+
+func TestCatalogBackRestoresSelectionAtEveryNestedLevel(t *testing.T) {
+	model := Model{
+		screen: screenCatalog,
+		width:  100,
+		height: 32,
+		categories: []catalog.Category{
+			{Name: "Browsers"},
+			{
+				Name: "Media",
+				Categories: []catalog.Category{
+					{Name: "Playback & Audio"},
+					{
+						Name:       "Images & Graphics",
+						Categories: []catalog.Category{{Name: "Editors"}},
+					},
+				},
+			},
+		},
+		catalogMode: catalogModeCategories,
+		selected:    map[string]bool{},
+	}
+
+	model.catalogCursor = 1 // Media
+	model.openCurrentCategory()
+	model.catalogCursor = 1 // Images & Graphics
+	model.openCurrentCategory()
+
+	model.goBackInCatalog()
+	if model.currentBreadcrumb() != "Catalog > Media" || model.catalogCursor != 1 {
+		t.Fatalf("first back should restore Images & Graphics in Media, path=%q cursor=%d", model.currentBreadcrumb(), model.catalogCursor)
+	}
+
+	model.goBackInCatalog()
+	if model.currentBreadcrumb() != "Catalog" || model.catalogCursor != 1 {
+		t.Fatalf("second back should restore Media at root, path=%q cursor=%d", model.currentBreadcrumb(), model.catalogCursor)
+	}
+}
+
 func TestRussianKeyboardAliasesWorkForGlobalQuit(t *testing.T) {
 	model := Model{
 		screen:   screenCatalog,

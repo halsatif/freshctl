@@ -1304,11 +1304,14 @@ func (m *Model) goBackInCatalog() {
 	if len(m.catalogPath) == 0 {
 		return
 	}
+	parentCursor := m.catalogPath[len(m.catalogPath)-1]
 	m.catalogPath = m.catalogPath[:len(m.catalogPath)-1]
-	m.catalogCursor = 0
+	m.catalogCursor = parentCursor
 	m.catalogScroll = 0
 	m.searchFocused = false
 	m.searchQuery = ""
+	m.clampCatalogCursor()
+	m.ensureCatalogCursorVisible()
 }
 
 func (m *Model) toggleCurrentApp() {
