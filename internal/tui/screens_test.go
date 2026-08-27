@@ -860,10 +860,11 @@ func TestCatalogSearchPanelsStayAligned(t *testing.T) {
 	view := stripANSI(model.View())
 	top, bottom := catalogPanelBorderRows(t, view)
 	lines := strings.Split(view, "\n")
-	for _, row := range []int{top, bottom} {
-		if count := strings.Count(lines[row], "+"); count < 4 {
-			t.Fatalf("left and right panel borders should share row %d, got %d plus signs in %q\n%s", row, count, lines[row], view)
-		}
+	if strings.Count(lines[top], "╭") != 2 || strings.Count(lines[top], "╮") != 2 {
+		t.Fatalf("left and right rounded top borders should share row %d, got %q\n%s", top, lines[top], view)
+	}
+	if strings.Count(lines[bottom], "╰") != 2 || strings.Count(lines[bottom], "╯") != 2 {
+		t.Fatalf("left and right rounded bottom borders should share row %d, got %q\n%s", bottom, lines[bottom], view)
 	}
 }
 
@@ -3143,7 +3144,9 @@ func catalogPanelBorderRows(t *testing.T, view string) (int, int) {
 
 	rows := []int{}
 	for i, line := range strings.Split(view, "\n") {
-		if strings.Contains(line, "+---") && strings.Count(line, "+") >= 4 {
+		isTop := strings.Count(line, "╭") == 2 && strings.Count(line, "╮") == 2
+		isBottom := strings.Count(line, "╰") == 2 && strings.Count(line, "╯") == 2
+		if isTop || isBottom {
 			rows = append(rows, i)
 		}
 	}
