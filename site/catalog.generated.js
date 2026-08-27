@@ -536,7 +536,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "powershell-core",
     "category": "terminal",
     "type": "CLITool",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Command-line shell and scripting environment. Run with pwsh."
   },

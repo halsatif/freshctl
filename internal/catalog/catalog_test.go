@@ -79,12 +79,13 @@ func TestDefaultPackageTypeExamples(t *testing.T) {
 
 func TestExpectedApplicationsUseDirectProvider(t *testing.T) {
 	directApplications := map[string]InstallerType{
-		"vscode":       InstallerTypeExecutable,
-		"googlechrome": InstallerTypeMSI,
-		"firefox":      InstallerTypeExecutable,
-		"telegram":     InstallerTypeExecutable,
-		"bitwarden":    InstallerTypeExecutable,
-		"tailscale":    InstallerTypeMSI,
+		"vscode":          InstallerTypeExecutable,
+		"googlechrome":    InstallerTypeMSI,
+		"firefox":         InstallerTypeExecutable,
+		"telegram":        InstallerTypeExecutable,
+		"powershell-core": InstallerTypeMSI,
+		"bitwarden":       InstallerTypeExecutable,
+		"tailscale":       InstallerTypeMSI,
 	}
 
 	for _, app := range collectPackages(Default()) {
@@ -182,7 +183,7 @@ func TestKnownPackageDetectionMetadata(t *testing.T) {
 		"golang":                     {method: DetectPath, value: "go.exe"},
 		"rustup.install":             {method: DetectPath, value: "rustup.exe"},
 		"cmake":                      {method: DetectPath, value: "cmake.exe"},
-		"powershell-core":            {method: DetectPath, value: "pwsh.exe"},
+		"powershell-core":            {method: DetectRegistry, value: "PowerShell 7"},
 		"microsoft-windows-terminal": {method: DetectRegistry, value: "Windows Terminal"},
 		"wezterm":                    {method: DetectRegistry, value: "WezTerm"},
 		"discord":                    {method: DetectRegistry, value: "Discord"},
@@ -252,7 +253,6 @@ func TestKnownCLIToolsUsePathDetection(t *testing.T) {
 		"golang",
 		"rustup.install",
 		"cmake",
-		"powershell-core",
 		"fastfetch",
 		"helix",
 		"ripgrep",

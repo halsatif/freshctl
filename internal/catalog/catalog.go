@@ -275,7 +275,24 @@ func Default() []Category {
 					Description:  "Terminal emulators, shells, and command-line utilities.",
 					Apps: []Application{
 						detect(app("Windows Terminal", "microsoft-windows-terminal", "terminal", "Microsoft terminal app for shells and command-line tools."), DetectRegistry, "Windows Terminal"),
-						detect(cli("PowerShell 7", "powershell-core", "terminal", "Command-line shell and scripting environment. Run with pwsh."), DetectPath, "pwsh.exe"),
+						withDirectProvider(
+							detect(cli("PowerShell 7", "powershell-core", "terminal", "Command-line shell and scripting environment. Run with pwsh."), DetectRegistry, "PowerShell 7"),
+							DirectInstallerMetadata{
+								Downloads: []DirectDownload{
+									{URL: "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.msi", Architecture: InstallerArchitectureX64},
+									{URL: "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-arm64.msi", Architecture: InstallerArchitectureARM64},
+								},
+								Filename: "PowerShellSetup.msi",
+								SilentArgs: []string{
+									"/quiet",
+									"/norestart",
+									"ADD_PATH=1",
+									"USE_MU=1",
+									"ENABLE_MU=1",
+								},
+								InstallerType: InstallerTypeMSI,
+							},
+						),
 						detect(app("WezTerm", "wezterm", "terminal", "GPU-accelerated terminal emulator."), DetectRegistry, "WezTerm"),
 						detect(cli("Fastfetch", "fastfetch", "terminal", "Command-line system information tool. Run with fastfetch."), DetectPath, "fastfetch.exe"),
 						detect(cli("FZF", "fzf", "terminal", "Command-line fuzzy finder. Run with fzf."), DetectPath, "fzf.exe"),

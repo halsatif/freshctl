@@ -119,22 +119,35 @@ func TestCommandForResolvesProvider(t *testing.T) {
 }
 
 func TestCommandForPrefersDirectCatalogProvider(t *testing.T) {
-	var chrome catalog.Application
-	for _, category := range catalog.Default() {
-		for _, app := range category.Apps {
-			if app.ID == "googlechrome" {
-				chrome = app
-				break
-			}
+	for _, test := range []struct {
+		id   string
+		name string
+	}{
+		{id: "googlechrome", name: "Google Chrome"},
+		{id: "powershell-core", name: "PowerShell 7"},
+	} {
+		app, ok := findCatalogApplication(catalog.Default(), test.id)
+		if !ok {
+			t.Fatalf("%s should exist in the default catalog", test.name)
+		}
+		if got := CommandFor(app); got != "direct install "+test.id {
+			t.Fatalf("%s should prefer Direct, got %q", test.name, got)
 		}
 	}
-	if chrome.ID == "" {
-		t.Fatal("Google Chrome should exist in the default catalog")
-	}
+}
 
-	if got := CommandFor(chrome); got != "direct install googlechrome" {
-		t.Fatalf("Google Chrome should prefer Direct, got %q", got)
+func findCatalogApplication(categories []catalog.Category, id string) (catalog.Application, bool) {
+	for _, category := range categories {
+		for _, app := range category.Apps {
+			if app.ID == id {
+				return app, true
+			}
+		}
+		if app, ok := findCatalogApplication(category.Categories, id); ok {
+			return app, true
+		}
 	}
+	return catalog.Application{}, false
 }
 
 func collectInstallEvents(app catalog.Application) []Event {

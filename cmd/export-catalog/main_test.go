@@ -29,6 +29,10 @@ func TestExportCatalogIncludesMetadata(t *testing.T) {
 	if !vscode.Verified {
 		t.Fatal("expected Visual Studio Code to be verified")
 	}
+	powershell := byID["powershell-core"]
+	if powershell.Name != "PowerShell 7" || powershell.Source != string(catalog.ProviderDirect) {
+		t.Fatalf("expected PowerShell 7 to use Direct, got %#v", powershell)
+	}
 	if byID["docker-desktop"].PackageID != "" {
 		t.Fatal("docker-desktop should not be exported")
 	}
