@@ -229,9 +229,9 @@ func (m Model) helpHintsFor(target screen) []keyHint {
 		}
 	case screenInstall:
 		hints = []keyHint{
-			hint("↑↓", "scroll summary", footerPriorityNavigation, "j/k"),
+			hint("↑↓", "scroll applications", footerPriorityNavigation, "j/k"),
 			hint("pgup/pgdn", "scroll one page", footerPrioritySecondary),
-			hint("home/end", "first or last result", footerPrioritySecondary),
+			hint("home/end", "first or last application", footerPrioritySecondary),
 			hint("l", "open installation logs", footerPriorityPrimary),
 		}
 		if !m.installDone && m.skipInstall != nil && m.currentApp.ID != "" {

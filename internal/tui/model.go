@@ -66,6 +66,7 @@ type Model struct {
 	notice          string
 	reviewScroll    int
 	installScroll   int
+	installFollow   bool
 
 	installEvents          chan installer.Event
 	skipInstall            chan struct{}
@@ -82,6 +83,8 @@ type Model struct {
 	currentStep            int
 	currentStatus          string
 	currentStart           time.Time
+	installStartedAt       time.Time
+	installElapsed         time.Duration
 	spinnerFrame           int
 	installDone            bool
 	installStatusRefreshed bool
@@ -187,6 +190,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.clampReviewScroll()
 		m.clampInstallScroll()
+		if m.installFollow {
+			m.ensureCurrentInstallVisible()
+		}
 		m.clampLogScroll()
 		return m, nil
 	case tea.KeyMsg:
@@ -861,6 +867,7 @@ func (m Model) handleElevationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 	if !msg.ok {
 		m.installDone = true
+		m.freezeInstallElapsed()
 		return m, nil
 	}
 
@@ -877,6 +884,9 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		m.currentStep = m.installIndex(event.App) + 1
 		m.currentStart = time.Now()
 		m.appStatus[event.App.ID] = "installing"
+		if m.installFollow {
+			m.ensureCurrentInstallVisible()
+		}
 		m.appendInstallLog(event.App, "> "+event.Line)
 	case installer.EventAppFinished:
 		if !m.currentStart.IsZero() && m.currentApp.ID == event.App.ID {
@@ -907,6 +917,7 @@ func (m Model) handleInstallEvent(msg installEventMsg) (tea.Model, tea.Cmd) {
 		}
 		m.results = append(append([]installer.Result{}, m.initialSkippedResults...), event.Results...)
 		m.installDone = true
+		m.freezeInstallElapsed()
 		m.currentStatus = "Installation complete."
 		if !m.installStatusRefreshed {
 			m.RefreshInstalledStatus()
@@ -1010,8 +1021,10 @@ func (m Model) handleInstallKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveInstallScroll(m.installSummaryVisibleRows(0))
 	case "home":
 		m.installScroll = 0
+		m.installFollow = false
 	case "end":
 		m.installScroll = maxInt(0, len(m.installApps)-m.installSummaryVisibleRows(0))
+		m.installFollow = true
 	case "l":
 		m.screen = screenInstallLogs
 		m.clampLogScroll()
@@ -1069,6 +1082,7 @@ func (m Model) handleInstallLogsMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) moveInstallScroll(delta int) {
+	m.installFollow = false
 	m.installScroll += delta
 	m.clampInstallScroll()
 }
@@ -1085,6 +1099,30 @@ func (m *Model) clampInstallScroll() {
 	if m.installScroll > maxScroll {
 		m.installScroll = maxScroll
 	}
+}
+
+func (m *Model) ensureCurrentInstallVisible() {
+	if m.currentApp.ID == "" {
+		return
+	}
+	visible := m.installSummaryVisibleRows(0)
+	if visible <= 0 {
+		return
+	}
+	index := m.installIndex(m.currentApp)
+	if index < m.installScroll {
+		m.installScroll = index
+	} else if index >= m.installScroll+visible {
+		m.installScroll = index - visible + 1
+	}
+	m.clampInstallScroll()
+}
+
+func (m *Model) freezeInstallElapsed() {
+	if m.installElapsed > 0 || m.installStartedAt.IsZero() {
+		return
+	}
+	m.installElapsed = time.Since(m.installStartedAt)
 }
 
 func (m *Model) appendInstallLog(app catalog.Application, line string) {
@@ -1173,6 +1211,9 @@ func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 	m.currentStatus = "Preparing installation..."
 	m.currentStart = time.Time{}
 	m.installScroll = 0
+	m.installFollow = true
+	m.installStartedAt = time.Now()
+	m.installElapsed = 0
 	m.spinnerFrame = 0
 	m.installDone = false
 	m.installStatusRefreshed = false
@@ -1181,6 +1222,7 @@ func (m Model) startInstall(apps []catalog.Application) (tea.Model, tea.Cmd) {
 	if len(appsToInstall) == 0 {
 		m.results = append([]installer.Result{}, m.initialSkippedResults...)
 		m.installDone = true
+		m.freezeInstallElapsed()
 		m.installStatusRefreshed = true
 		m.skipInstall = nil
 		m.currentStatus = "All selected applications are already installed."

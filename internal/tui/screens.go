@@ -426,66 +426,26 @@ func (m Model) viewReview() string {
 }
 
 func (m Model) viewInstall() string {
-	contentWidth := pageWidth(m.width)
-	total := len(m.installApps)
-	currentName := "preparing"
-	if m.currentApp.Name != "" {
-		currentName = m.currentApp.Name
-	}
-	elapsed := ""
-	if !m.currentStart.IsZero() {
-		currentElapsed := formatElapsed(time.Since(m.currentStart))
-		if m.installDone {
-			if frozen := m.elapsedForApp(m.currentApp); frozen != "--:--" {
-				currentElapsed = frozen
-			}
-		}
-		elapsed = " " + mutedStyle.Render(currentElapsed)
+	layout := m.installScreenLayout()
+	title, before, after := m.installScreenSections(layout.innerWidth, layout.contentHeight)
+	visibleRows := layout.contentHeight - len(before) - len(after)
+	if visibleRows < 0 {
+		visibleRows = 0
 	}
 
-	progress := fmt.Sprintf("[%d/%d]", m.currentStep, total)
-	if total == 0 {
-		progress = "[0/0]"
+	lines := append([]string{}, before...)
+	lines = append(lines, m.installApplicationRows(layout.innerWidth, visibleRows)...)
+	for len(lines) < layout.contentHeight-len(after) {
+		lines = append(lines, "")
 	}
+	lines = append(lines, after...)
 
-	spin := " "
-	if !m.installDone {
-		spin = spinnerFrame(m.spinnerFrame)
+	content := renderRoundedContainer(title, layout.width, layout.innerWidth, lines)
+	if layout.footerGap {
+		content += "\n"
 	}
-
-	status := m.currentStatus
-	if status == "" {
-		status = "Preparing installation..."
-	}
-
-	lines := []string{
-		titleStyle.Render("install"),
-	}
-	if source := m.selectionSourceLine(); source != "" {
-		lines = append(lines, mutedStyle.Render(source))
-	}
-	lines = append(lines,
-		mutedStyle.Render(m.installPlanLine()),
-		fitLine(fmt.Sprintf("%s current: %s%s %s", spin, currentName, elapsed, mutedStyle.Render(progress)), contentWidth),
-		mutedStyle.Render(fitLine("Status: "+status, contentWidth)),
-	)
-
-	if m.installDone {
-		lines = append(lines, "", m.installDoneMessage())
-	}
-
-	lines = append(lines, "", "Summary:")
-	visibleRows := m.installSummaryVisibleRows(len(lines))
-	if len(m.installApps) > visibleRows {
-		start, end := m.installSummaryRange(visibleRows)
-		lines = append(lines, mutedStyle.Render(fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(m.installApps))))
-	}
-	lines = append(lines, m.installSummaryTable(contentWidth, visibleRows)...)
-	if m.installDone {
-		lines = append(lines, m.installFailureLines(contentWidth)...)
-	}
-	lines = append(lines, "", m.footerFor(screenInstall))
-	return place(strings.Join(lines, "\n"), m.width, m.height)
+	content += "\n" + m.footerFor(screenInstall)
+	return place(content, m.width, m.height)
 }
 
 func (m Model) viewInstallLogs() string {
@@ -650,66 +610,162 @@ func (m Model) viewBrokenChocolatey() string {
 	return place(strings.Join(lines, "\n"), m.width, m.height)
 }
 
-func (m Model) summaryLines() []string {
-	if len(m.results) == 0 {
-		return []string{mutedStyle.Render("No installs were run.")}
-	}
-
-	okCount := 0
-	failCount := 0
-	lines := []string{"Summary:"}
-	for _, result := range m.results {
-		if result.Success {
-			okCount++
-			lines = append(lines, successStyle.Render("  ok     ")+result.App.Name)
-		} else {
-			failCount++
-			errText := "unknown error"
-			if result.Err != nil {
-				errText = result.Err.Error()
-			}
-			lines = append(lines, errorStyle.Render("  failed ")+result.App.Name+" - "+errText)
-		}
-	}
-	lines = append(lines, mutedStyle.Render(fmt.Sprintf("%d succeeded, %d failed", okCount, failCount)))
-	return lines
+type installScreenLayout struct {
+	width         int
+	innerWidth    int
+	contentHeight int
+	footerGap     bool
 }
 
-func (m Model) installSummaryTable(width, visibleRows int) []string {
+func (m Model) installScreenLayout() installScreenLayout {
+	width := pageWidth(m.width)
+	if width < 4 {
+		width = 4
+	}
+	layout := installScreenLayout{
+		width:         width,
+		innerWidth:    maxInt(1, width-4),
+		contentHeight: 18,
+		footerGap:     true,
+	}
+	if m.height <= 0 {
+		return layout
+	}
+	layout.footerGap = m.height >= 7
+	reserved := 3 // top border, bottom border and footer
+	if layout.footerGap {
+		reserved++
+	}
+	layout.contentHeight = m.height - reserved
+	if layout.contentHeight < 0 {
+		layout.contentHeight = 0
+	}
+	return layout
+}
+
+func (m Model) installScreenSections(width, available int) (string, []string, []string) {
+	if m.installDone {
+		return m.installCompletionSections(width, available)
+	}
+
+	completed, total := m.installBatchProgress()
+	before := []string{m.installBatchLabel(completed, total)}
+	if available >= 10 {
+		before = append([]string{""}, before...)
+	}
+	if available >= 2 {
+		before = append(before, renderProgressBar(completed, total, width))
+	}
+	operation, currentPercent, hasCurrentPercent := m.currentInstallOperation()
+	currentName := m.currentApp.Name
+	if currentName == "" {
+		currentName = "Preparing applications"
+	}
+	if available >= 7 {
+		before = append(before, "", selectedStyle.Render(operation), logApplicationStyle.Render(fitLine(currentName, width)))
+		if hasCurrentPercent && available >= 9 {
+			before = append(before, renderPercentProgressBar(currentPercent, width))
+		}
+		before = append(before, "")
+	} else if available >= 3 {
+		before = append(before, fitLine(selectedStyle.Render(operation)+"  "+currentName, width))
+	}
+	if source := m.selectionSourceLine(); source != "" && available-len(before) >= 2 {
+		before = append(before, mutedStyle.Render(fitLine(source, width)))
+	}
+	return "install", before, nil
+}
+
+func (m Model) installCompletionSections(width, available int) (string, []string, []string) {
+	before := []string{m.installCompletionSummary(width)}
+	after := []string{}
+	if available >= 7 {
+		before = append([]string{""}, before...)
+		before = append(before, "")
+		after = append(after, "", mutedStyle.Render("Finished in "+formatElapsed(m.totalInstallElapsed())), "")
+	} else if available >= 5 {
+		before = append(before, "")
+		after = append(after, "", mutedStyle.Render("Finished in "+formatElapsed(m.totalInstallElapsed())))
+	} else if available >= 2 {
+		after = append(after, mutedStyle.Render("Finished in "+formatElapsed(m.totalInstallElapsed())))
+	}
+	return "complete", before, after
+}
+
+func (m Model) installApplicationRows(width, visibleRows int) []string {
+	if visibleRows <= 0 {
+		return nil
+	}
 	if len(m.installApps) == 0 {
-		return []string{"  " + mutedStyle.Render("No apps queued.")}
+		return []string{mutedStyle.Render("No applications queued.")}
 	}
-
 	start, end := m.installSummaryRange(visibleRows)
-	lines := make([]string, 0, end-start)
-	nameWidth := m.installNameWidth(width)
+	lines := make([]string, 0, visibleRows)
 	for _, app := range m.installApps[start:end] {
-		status := m.appStatus[app.ID]
-		if status == "" {
-			status = "pending"
-		}
-		info := installStatusInfo(status)
-		elapsed := m.elapsedForApp(app)
-		line := fmt.Sprintf("  %s %-11s %-*s %s", info.RenderedCode(), info.Label, nameWidth, app.Name, elapsed)
-		lines = append(lines, fitLine(line, width))
+		lines = append(lines, m.installApplicationRow(app, width))
 	}
 	return lines
 }
 
-func (m Model) installPlanLine() string {
-	alreadyInstalled := len(m.initialSkippedResults)
-	remaining := 0
-	for _, app := range m.installApps {
-		switch m.appStatus[app.ID] {
-		case "", "pending", "installing", "skipping":
-			remaining++
+func (m Model) installApplicationRow(app catalog.Application, width int) string {
+	state := m.installApplicationState(app)
+	label := ""
+	if width >= 56 {
+		label = state.Label
+		if state.Kind == installAppSkipped && m.wasInitiallyInstalled(app.ID) {
+			label = "already installed"
 		}
 	}
-	return fmt.Sprintf("Selected: %d  Already installed: %d  Remaining: %d", len(m.installApps), alreadyInstalled, remaining)
+	elapsed := m.elapsedForApp(app)
+	if elapsed == "--:--" || state.Kind == installAppWaiting || state.Kind == installAppSkipped {
+		elapsed = ""
+	}
+
+	suffix := strings.TrimSpace(strings.Join(nonEmptyStrings(label, elapsed), "  "))
+	reserved := ansi.StringWidth(state.Symbol) + 1
+	if suffix != "" {
+		reserved += 2 + ansi.StringWidth(suffix)
+	}
+	nameWidth := width - reserved
+	if nameWidth < 4 && label != "" {
+		label = ""
+		suffix = elapsed
+		reserved = ansi.StringWidth(state.Symbol) + 1
+		if suffix != "" {
+			reserved += 2 + ansi.StringWidth(suffix)
+		}
+		nameWidth = width - reserved
+	}
+	if nameWidth < 1 {
+		nameWidth = 1
+	}
+	name := fitLine(app.Name, nameWidth)
+	line := state.Symbol + " " + name
+	if suffix != "" {
+		padding := width - ansi.StringWidth(line) - ansi.StringWidth(suffix)
+		if padding < 2 {
+			padding = 2
+		}
+		line += strings.Repeat(" ", padding) + suffix
+	}
+	return state.Style.Render(fitLine(line, width))
+}
+
+func nonEmptyStrings(values ...string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func (m Model) installSummaryRange(visibleRows int) (int, int) {
-	if visibleRows <= 0 || visibleRows > len(m.installApps) {
+	if visibleRows <= 0 {
+		return 0, 0
+	}
+	if visibleRows > len(m.installApps) {
 		visibleRows = len(m.installApps)
 	}
 	start := m.installScroll
@@ -730,66 +786,14 @@ func (m Model) installSummaryRange(visibleRows int) (int, int) {
 }
 
 func (m Model) installSummaryVisibleRows(usedLines int) int {
-	if m.height <= 0 {
-		return 12
-	}
-	rows := m.height - usedLines - 4
-	if rows < 4 {
-		return 4
-	}
-	if rows > 14 {
-		return 14
+	_ = usedLines
+	layout := m.installScreenLayout()
+	_, before, after := m.installScreenSections(layout.innerWidth, layout.contentHeight)
+	rows := layout.contentHeight - len(before) - len(after)
+	if rows < 0 {
+		return 0
 	}
 	return rows
-}
-
-func (m Model) installFailureLines(width int) []string {
-	if len(m.results) == 0 {
-		return nil
-	}
-
-	lines := make([]string, 0)
-	shown := 0
-	hidden := 0
-	for _, result := range m.results {
-		if result.Success || result.Skipped || result.Err == nil {
-			continue
-		}
-		if len(lines) == 0 {
-			lines = append(lines, "", "Failures:")
-		}
-		if shown >= 3 {
-			hidden++
-			continue
-		}
-		lines = append(lines, fitLine(errorStyle.Render("  failed ")+result.App.Name+" ("+result.App.ID+") - "+result.Err.Error(), width))
-		shown++
-	}
-	if hidden > 0 {
-		lines = append(lines, mutedStyle.Render(fmt.Sprintf("  %d more failures. Press l to view logs.", hidden)))
-	}
-	return lines
-}
-
-func (m Model) installNameWidth(width int) int {
-	maxName := 12
-	for _, app := range m.installApps {
-		if nameWidth := ansi.StringWidth(app.Name); nameWidth > maxName {
-			maxName = nameWidth
-		}
-	}
-
-	limit := width - 28
-	if limit < 12 {
-		return 12
-	}
-	if maxName > limit {
-		return limit
-	}
-	if maxName > 30 {
-		return 30
-	}
-	return maxName
 }
 
 func (m Model) catalogDetailsPanel(width, height int) string {
@@ -1003,10 +1007,158 @@ func (m Model) elapsedForApp(app catalog.Application) string {
 	return "--:--"
 }
 
-func (m Model) installDoneMessage() string {
+type installAppStateKind int
+
+const (
+	installAppWaiting installAppStateKind = iota
+	installAppCurrent
+	installAppDownloading
+	installAppSuccess
+	installAppSkipped
+	installAppFailed
+)
+
+type installAppState struct {
+	Kind   installAppStateKind
+	Symbol string
+	Label  string
+	Style  lipgloss.Style
+}
+
+func (m Model) installApplicationState(app catalog.Application) installAppState {
+	status := m.appStatus[app.ID]
+	switch status {
+	case "installed":
+		return installAppState{Kind: installAppSuccess, Symbol: "✓", Label: "installed", Style: successStyle}
+	case "failed":
+		return installAppState{Kind: installAppFailed, Symbol: "×", Label: "failed", Style: errorStyle}
+	case "skipped":
+		return installAppState{Kind: installAppSkipped, Symbol: "–", Label: "skipped", Style: mutedStyle}
+	case "installing", "skipping":
+		operation, _, _ := m.currentInstallOperation()
+		if status == "installing" && operation == "Downloading" {
+			return installAppState{Kind: installAppDownloading, Symbol: "↓", Label: "downloading", Style: logActivityStyle}
+		}
+		label := "installing"
+		if status == "skipping" {
+			label = "skipping"
+		}
+		return installAppState{Kind: installAppCurrent, Symbol: "●", Label: label, Style: logActivityStyle}
+	default:
+		return installAppState{Kind: installAppWaiting, Symbol: "○", Label: "waiting", Style: mutedStyle}
+	}
+}
+
+func (m Model) currentInstallOperation() (string, int, bool) {
+	status := strings.ToLower(m.currentStatus)
+	operation := "Installing"
+	switch {
+	case m.currentApp.ID == "":
+		operation = "Preparing"
+	case strings.Contains(status, "download"):
+		operation = "Downloading"
+	case strings.Contains(status, "extract"):
+		operation = "Extracting"
+	case strings.Contains(status, "verif"), strings.Contains(status, "detect"):
+		operation = "Verifying"
+	case strings.Contains(status, "launch"), strings.Contains(status, "starting"):
+		operation = "Launching"
+	case strings.Contains(status, "skip"):
+		operation = "Skipping"
+	}
+	percentText := logProgressPercent(m.currentStatus)
+	if percentText == "" {
+		return operation, 0, false
+	}
+	percent := 0
+	if _, err := fmt.Sscanf(percentText, "%d%%", &percent); err != nil {
+		return operation, 0, false
+	}
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	return operation, percent, true
+}
+
+func (m Model) installBatchProgress() (int, int) {
+	completed := 0
+	for _, app := range m.installApps {
+		switch m.appStatus[app.ID] {
+		case "installed", "failed", "skipped":
+			completed++
+		}
+	}
+	total := len(m.installApps)
+	if completed > total {
+		completed = total
+	}
+	return completed, total
+}
+
+func (m Model) installBatchLabel(completed, total int) string {
+	return fmt.Sprintf("%d of %d %s", completed, total, pluralWord(total, "app", "apps"))
+}
+
+func renderProgressBar(completed, total, width int) string {
+	percent := 0
+	if total > 0 {
+		percent = (completed*100 + total/2) / total
+	}
+	return renderPercentProgressBar(percent, width)
+}
+
+func renderPercentProgressBar(percent, width int) string {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	percentText := fmt.Sprintf("%d%%", percent)
+	barWidth := width - ansi.StringWidth(percentText) - 2
+	if barWidth < 4 {
+		return mutedStyle.Render(fitLine(percentText, width))
+	}
+	filled := (percent*barWidth + 50) / 100
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := strings.Repeat("■", filled) + strings.Repeat("□", barWidth-filled)
+	return logActivityStyle.Render(bar) + "  " + mutedStyle.Render(percentText)
+}
+
+func (m Model) installCompletionSummary(width int) string {
+	installed, failed, skipped := m.installCompletionCounts()
+	if installed > 0 && failed == 0 && skipped == 0 {
+		return successStyle.Render(fitLine(fmt.Sprintf("✓ %d %s installed", installed, pluralWord(installed, "app", "apps")), width))
+	}
+	parts := make([]string, 0, 3)
+	if installed > 0 {
+		parts = append(parts, successStyle.Render(fmt.Sprintf("✓ %d installed", installed)))
+	}
+	if failed > 0 {
+		parts = append(parts, errorStyle.Render(fmt.Sprintf("× %d failed", failed)))
+	}
+	if skipped > 0 {
+		label := "skipped"
+		if skipped == len(m.initialSkippedResults) {
+			label = "already installed"
+		}
+		parts = append(parts, mutedStyle.Render(fmt.Sprintf("– %d %s", skipped, label)))
+	}
+	if len(parts) == 0 {
+		return mutedStyle.Render("No applications were installed.")
+	}
+	return fitLine(strings.Join(parts, "   "), width)
+}
+
+func (m Model) installCompletionCounts() (int, int, int) {
+	installed := 0
 	failed := 0
 	skipped := 0
-	installed := 0
 	for _, app := range m.installApps {
 		switch m.appStatus[app.ID] {
 		case "installed":
@@ -1017,43 +1169,40 @@ func (m Model) installDoneMessage() string {
 			skipped++
 		}
 	}
+	return installed, failed, skipped
+}
 
-	if failed == 0 && skipped == 0 {
-		return successStyle.Render("All selected apps were installed.")
+func (m Model) wasInitiallyInstalled(appID string) bool {
+	for _, result := range m.initialSkippedResults {
+		if result.App.ID == appID && result.Skipped {
+			return true
+		}
 	}
-	return mutedStyle.Render(fmt.Sprintf("Install finished: %d installed, %d failed, %d skipped.", installed, failed, skipped))
+	return false
 }
 
-func spinnerFrame(frame int) string {
-	frames := []string{"|", "/", "-", "\\"}
-	return frames[frame%len(frames)]
-}
-
-type installStatus struct {
-	Code  string
-	Label string
-	Style lipgloss.Style
-}
-
-func installStatusInfo(status string) installStatus {
-	switch status {
-	case "installed":
-		return installStatus{Code: "OK", Label: "installed", Style: successStyle}
-	case "failed":
-		return installStatus{Code: "FAIL", Label: "failed", Style: errorStyle}
-	case "installing":
-		return installStatus{Code: "RUN", Label: "installing", Style: selectedStyle}
-	case "skipping":
-		return installStatus{Code: "SKIP", Label: "skipping", Style: selectedStyle}
-	case "skipped":
-		return installStatus{Code: "SKIP", Label: "skipped", Style: mutedStyle}
-	default:
-		return installStatus{Code: "WAIT", Label: "pending", Style: mutedStyle}
+func (m Model) totalInstallElapsed() time.Duration {
+	if m.installElapsed > 0 {
+		return m.installElapsed
 	}
+	if m.installDone {
+		total := time.Duration(0)
+		for _, elapsed := range m.appElapsed {
+			total += elapsed
+		}
+		return total
+	}
+	if !m.installStartedAt.IsZero() {
+		return time.Since(m.installStartedAt)
+	}
+	return 0
 }
 
-func (s installStatus) RenderedCode() string {
-	return s.Style.Render(fmt.Sprintf("%-4s", s.Code))
+func pluralWord(count int, singular, plural string) string {
+	if count == 1 {
+		return singular
+	}
+	return plural
 }
 
 type installLogsLayout struct {
@@ -1264,22 +1413,32 @@ func formatInstallLogEntry(entry installLogEntry, width int) string {
 
 func renderInstallLogsContainer(layout installLogsLayout, applicationName string, logLines []string) string {
 	border := lipgloss.RoundedBorder()
-	lines := []string{renderInstallLogsTopBorder(layout.width, border)}
+	lines := []string{renderRoundedTopBorder("logs", layout.width, border)}
 	if layout.showAppHeader {
-		lines = append(lines, renderInstallLogsContentLine(logApplicationStyle.Render(applicationName), layout, border))
+		lines = append(lines, renderRoundedContentLine(logApplicationStyle.Render(applicationName), layout.width, layout.innerWidth, border))
 	}
 	if layout.showSeparator {
 		lines = append(lines, logBorderStyle.Render(border.MiddleLeft+strings.Repeat(border.Top, layout.width-2)+border.MiddleRight))
 	}
 	for _, line := range logLines {
-		lines = append(lines, renderInstallLogsContentLine(line, layout, border))
+		lines = append(lines, renderRoundedContentLine(line, layout.width, layout.innerWidth, border))
 	}
 	lines = append(lines, logBorderStyle.Render(border.BottomLeft+strings.Repeat(border.Bottom, layout.width-2)+border.BottomRight))
 	return strings.Join(lines, "\n")
 }
 
-func renderInstallLogsTopBorder(width int, border lipgloss.Border) string {
-	title := " logs "
+func renderRoundedContainer(title string, width, innerWidth int, content []string) string {
+	border := lipgloss.RoundedBorder()
+	lines := []string{renderRoundedTopBorder(title, width, border)}
+	for _, line := range content {
+		lines = append(lines, renderRoundedContentLine(line, width, innerWidth, border))
+	}
+	lines = append(lines, logBorderStyle.Render(border.BottomLeft+strings.Repeat(border.Bottom, width-2)+border.BottomRight))
+	return strings.Join(lines, "\n")
+}
+
+func renderRoundedTopBorder(label string, width int, border lipgloss.Border) string {
+	title := " " + label + " "
 	if width < ansi.StringWidth(title)+2 {
 		return logBorderStyle.Render(border.TopLeft + strings.Repeat(border.Top, maxInt(0, width-2)) + border.TopRight)
 	}
@@ -1288,13 +1447,14 @@ func renderInstallLogsTopBorder(width int, border lipgloss.Border) string {
 		logBorderStyle.Render(strings.Repeat(border.Top, remaining)+border.TopRight)
 }
 
-func renderInstallLogsContentLine(content string, layout installLogsLayout, border lipgloss.Border) string {
-	content = fitLine(content, layout.innerWidth)
-	padding := layout.innerWidth - ansi.StringWidth(content)
+func renderRoundedContentLine(content string, width, innerWidth int, border lipgloss.Border) string {
+	content = fitLine(content, innerWidth)
+	padding := innerWidth - ansi.StringWidth(content)
 	if padding < 0 {
 		padding = 0
 	}
-	return logBorderStyle.Render(border.Left) + " " + content + strings.Repeat(" ", padding) + " " + logBorderStyle.Render(border.Right)
+	line := logBorderStyle.Render(border.Left) + " " + content + strings.Repeat(" ", padding) + " " + logBorderStyle.Render(border.Right)
+	return fitLine(line, width)
 }
 
 func bootstrapLogLimit(height int) int {

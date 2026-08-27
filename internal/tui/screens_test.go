@@ -677,7 +677,7 @@ func TestInstallPlanShowsAppliedPreset(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "Preset: Minimal") || !strings.Contains(view, "Selected: 1") {
+	if !strings.Contains(view, "Preset: Minimal") || !strings.Contains(view, "0 of 1 app") {
 		t.Fatalf("install plan should show applied preset and counts, got:\n%s", view)
 	}
 }
@@ -1544,16 +1544,13 @@ func TestSkippedPackagesAppearInInstallSummaryWithoutFailure(t *testing.T) {
 	got := updated.(Model)
 	view := stripANSI(got.View())
 
-	if !strings.Contains(view, "skipped") || !strings.Contains(view, "Already There") {
+	if !strings.Contains(view, "already installed") || !strings.Contains(view, "Already There") {
 		t.Fatalf("skipped package should render in install summary, got:\n%s", view)
 	}
-	if strings.Contains(view, "FAIL") || strings.Contains(view, "Failures:") {
+	if strings.Contains(view, "FAIL") || strings.Contains(view, "Failures:") || strings.Contains(view, "×") {
 		t.Fatalf("skipped package should not count as a failure, got:\n%s", view)
 	}
-	if !strings.Contains(view, "0 failed") {
-		t.Fatalf("skipped package should produce zero failures, got:\n%s", view)
-	}
-	if !strings.Contains(view, "Selected: 1") || !strings.Contains(view, "Already installed: 1") || !strings.Contains(view, "Remaining: 0") {
+	if !strings.Contains(view, "complete") || !strings.Contains(view, "– 1 already installed") {
 		t.Fatalf("install counts should include skipped packages, got:\n%s", view)
 	}
 }
@@ -2234,7 +2231,14 @@ func TestInstallLogsSmallTerminalDoesNotOverflow(t *testing.T) {
 }
 
 func TestInstallScreenUsesProviderNeutralStatus(t *testing.T) {
-	app := catalog.Application{Name: "Example App", ID: "example"}
+	app := catalog.Application{
+		Name: "Example App",
+		ID:   "example",
+		Providers: []catalog.Provider{{
+			Type:     catalog.ProviderDirect,
+			Strategy: catalog.InstallStrategyDirectInstaller,
+		}},
+	}
 	model := Model{
 		screen:      screenInstall,
 		width:       90,
@@ -2257,11 +2261,212 @@ func TestInstallScreenUsesProviderNeutralStatus(t *testing.T) {
 	})
 	got := updated.(Model)
 	view := stripANSI(got.View())
-	if !strings.Contains(view, "Status: Downloading... 70%") {
+	if !strings.Contains(view, "Downloading") || !strings.Contains(view, "70%") {
 		t.Fatalf("install screen should show compact provider-neutral progress, got:\n%s", view)
 	}
 	if strings.Contains(view, "provider-internal-endpoint") {
 		t.Fatalf("install screen should not expose raw provider output, got:\n%s", view)
+	}
+	for _, hidden := range []string{"Provider:", "provider:", "Backend:", "Chocolatey", "Direct", "Selected:", "Remaining:", "Status:"} {
+		if strings.Contains(view, hidden) {
+			t.Fatalf("install screen should hide technical label %q, got:\n%s", hidden, view)
+		}
+	}
+}
+
+func TestInstallScreenShowsBatchProgress(t *testing.T) {
+	apps := fakeInstallPackages(5)
+	model := Model{
+		screen:      screenInstall,
+		width:       90,
+		height:      20,
+		installApps: apps,
+		appStatus: map[string]string{
+			apps[0].ID: "installed",
+			apps[1].ID: "failed",
+			apps[2].ID: "skipped",
+			apps[3].ID: "installing",
+			apps[4].ID: "pending",
+		},
+		appElapsed: map[string]time.Duration{},
+		currentApp: apps[3],
+	}
+
+	completed, total := model.installBatchProgress()
+	if completed != 3 || total != 5 {
+		t.Fatalf("batch progress should count terminal states, got %d/%d", completed, total)
+	}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "3 of 5 apps") || !strings.Contains(view, "60%") {
+		t.Fatalf("active install should render batch progress, got:\n%s", view)
+	}
+}
+
+func TestInstallApplicationSemanticStates(t *testing.T) {
+	apps := fakeInstallPackages(6)
+	model := Model{
+		installApps: apps,
+		appStatus: map[string]string{
+			apps[0].ID: "installed",
+			apps[1].ID: "installing",
+			apps[2].ID: "installing",
+			apps[3].ID: "pending",
+			apps[4].ID: "skipped",
+			apps[5].ID: "failed",
+		},
+		currentApp:    apps[1],
+		currentStatus: "Installing...",
+	}
+	tests := []struct {
+		app    catalog.Application
+		kind   installAppStateKind
+		symbol string
+	}{
+		{apps[0], installAppSuccess, "✓"},
+		{apps[1], installAppCurrent, "●"},
+		{apps[3], installAppWaiting, "○"},
+		{apps[4], installAppSkipped, "–"},
+		{apps[5], installAppFailed, "×"},
+	}
+	for _, test := range tests {
+		state := model.installApplicationState(test.app)
+		if state.Kind != test.kind || state.Symbol != test.symbol {
+			t.Fatalf("unexpected semantic state for %s: %#v", test.app.Name, state)
+		}
+	}
+
+	model.currentApp = apps[2]
+	model.currentStatus = "Downloading... 78%"
+	state := model.installApplicationState(apps[2])
+	if state.Kind != installAppDownloading || state.Symbol != "↓" {
+		t.Fatalf("download should use its own semantic state, got %#v", state)
+	}
+}
+
+func TestInstallScreenShowsDirectDownloadProgress(t *testing.T) {
+	app := catalog.Application{
+		Name: "Visual Studio Code",
+		ID:   "vscode",
+		Providers: []catalog.Provider{{
+			Type:     catalog.ProviderDirect,
+			Strategy: catalog.InstallStrategyDirectInstaller,
+		}},
+	}
+	model := Model{
+		screen:        screenInstall,
+		width:         80,
+		height:        18,
+		installApps:   []catalog.Application{app},
+		appStatus:     map[string]string{app.ID: "installing"},
+		appElapsed:    map[string]time.Duration{},
+		currentApp:    app,
+		currentStatus: "Downloading... 78%",
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Downloading") || !strings.Contains(view, "Visual Studio Code") || !strings.Contains(view, "78%") {
+		t.Fatalf("direct download progress should be visible without provider details, got:\n%s", view)
+	}
+	if strings.Contains(view, "Direct") || strings.Contains(view, "Provider") {
+		t.Fatalf("direct provider should remain an implementation detail, got:\n%s", view)
+	}
+}
+
+func TestInstallCompletionStateShowsCountsAndElapsed(t *testing.T) {
+	apps := fakeInstallPackages(4)
+	model := Model{
+		screen:      screenInstall,
+		width:       90,
+		height:      18,
+		installApps: apps,
+		appStatus: map[string]string{
+			apps[0].ID: "installed",
+			apps[1].ID: "installed",
+			apps[2].ID: "failed",
+			apps[3].ID: "skipped",
+		},
+		appElapsed: map[string]time.Duration{
+			apps[0].ID: 10 * time.Second,
+			apps[1].ID: 20 * time.Second,
+			apps[2].ID: 9 * time.Second,
+		},
+		installDone:    true,
+		installElapsed: 2*time.Minute + 44*time.Second,
+	}
+
+	view := stripANSI(model.View())
+	for _, expected := range []string{"complete", "✓ 2 installed", "× 1 failed", "– 1 skipped", "Finished in 02:44"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("completion state missing %q:\n%s", expected, view)
+		}
+	}
+	for _, removed := range []string{"Installation complete", "Summary:", "OK", "WAIT", "RUN"} {
+		if strings.Contains(view, removed) {
+			t.Fatalf("completion state should not contain old technical text %q:\n%s", removed, view)
+		}
+	}
+}
+
+func TestInstallScreenResponsiveLayout(t *testing.T) {
+	app := catalog.Application{Name: strings.Repeat("Very Long Application Name ", 5), ID: "long-app"}
+	for _, size := range []struct {
+		width  int
+		height int
+	}{{28, 12}, {20, 6}} {
+		model := Model{
+			screen:        screenInstall,
+			width:         size.width,
+			height:        size.height,
+			installApps:   []catalog.Application{app},
+			appStatus:     map[string]string{app.ID: "installing"},
+			appElapsed:    map[string]time.Duration{},
+			currentApp:    app,
+			currentStatus: "Installing...",
+		}
+		view := stripANSI(model.View())
+		lines := strings.Split(view, "\n")
+		if len(lines) != size.height {
+			t.Fatalf("responsive install view has %d lines, want %d", len(lines), size.height)
+		}
+		for _, line := range lines {
+			if ansi.StringWidth(line) > size.width {
+				t.Fatalf("install view exceeds width %d: %q", size.width, line)
+			}
+		}
+		if !strings.Contains(view, "l logs") {
+			t.Fatalf("adaptive footer should remain visible at %dx%d:\n%s", size.width, size.height, view)
+		}
+	}
+}
+
+func TestInstallAutoFollowKeepsCurrentApplicationVisible(t *testing.T) {
+	apps := fakeInstallPackages(24)
+	model := Model{
+		screen:        screenInstall,
+		width:         90,
+		height:        16,
+		installApps:   apps,
+		appStatus:     map[string]string{},
+		appElapsed:    map[string]time.Duration{},
+		installFollow: true,
+	}
+	for _, app := range apps {
+		model.appStatus[app.ID] = "pending"
+	}
+
+	updated, _ := model.handleInstallEvent(installEventMsg{ok: true, event: installer.Event{Kind: installer.EventAppStarted, App: apps[18]}})
+	got := updated.(Model)
+	start, end := got.installSummaryRange(got.installSummaryVisibleRows(0))
+	if 18 < start || 18 >= end {
+		t.Fatalf("auto-follow should keep current app visible, range=%d:%d", start, end)
+	}
+
+	got.moveInstallScroll(-1)
+	manualScroll := got.installScroll
+	updated, _ = got.handleInstallEvent(installEventMsg{ok: true, event: installer.Event{Kind: installer.EventAppStarted, App: apps[19]}})
+	got = updated.(Model)
+	if got.installFollow || got.installScroll != manualScroll {
+		t.Fatalf("manual scrolling should pause install auto-follow, scroll=%d want=%d follow=%v", got.installScroll, manualScroll, got.installFollow)
 	}
 }
 
