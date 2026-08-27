@@ -105,7 +105,7 @@ func (c *Chocolatey) install(ctx context.Context, app catalog.Application, provi
 		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: errors.New("chocolatey executable was not found")}
 	}
 
-	cmd := exec.CommandContext(ctx, choco, installArgs(provider)...)
+	cmd := exec.Command(choco, installArgs(provider)...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -123,9 +123,9 @@ func (c *Chocolatey) install(ctx context.Context, app catalog.Application, provi
 	wg.Add(2)
 	go scanOutput(&wg, stdout, opts.Log)
 	go scanOutput(&wg, stderr, opts.Log)
-	wg.Wait()
 
-	if err := cmd.Wait(); err != nil {
+	if err := waitCommand(ctx, cmd); err != nil {
+		wg.Wait()
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -136,6 +136,7 @@ func (c *Chocolatey) install(ctx context.Context, app catalog.Application, provi
 		}
 		return InstallError{App: app, Provider: provider, ExitCode: exitCode, Err: err}
 	}
+	wg.Wait()
 	return nil
 }
 

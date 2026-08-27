@@ -259,8 +259,14 @@ func runDirectInstaller(ctx context.Context, installerType catalog.InstallerType
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, command, commandArgs...)
-	if err := cmd.Run(); err != nil {
+	cmd := exec.Command(command, commandArgs...)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if err := waitCommand(ctx, cmd); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return fmt.Errorf("installer exited with code %d", exitErr.ExitCode())
