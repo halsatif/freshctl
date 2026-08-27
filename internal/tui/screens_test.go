@@ -2641,6 +2641,37 @@ func TestCatalogSearchMatchesFuzzyInitialsAndSubsequence(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchRanksStrongNameMatchesFirst(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "pow",
+		selected:    map[string]bool{},
+	}
+
+	items := model.filteredFullCatalogItems()
+	if len(items) == 0 || items[0].Package.ID != "powershell-core" {
+		t.Fatalf("search query pow should rank PowerShell 7 first, got %#v", itemNames(items))
+	}
+	if containsPackage(items, "brave") {
+		t.Fatalf("weak subsequence matches in descriptions should not include Brave Browser, got %#v", itemNames(items))
+	}
+}
+
+func TestCatalogSearchCorrectsRussianKeyboardLayout(t *testing.T) {
+	model := Model{
+		categories:  catalog.Default(),
+		catalogMode: catalogModeFull,
+		searchQuery: "пщщпду сркщьу",
+		selected:    map[string]bool{},
+	}
+
+	items := model.filteredFullCatalogItems()
+	if len(items) == 0 || items[0].Package.ID != "googlechrome" {
+		t.Fatalf("search should understand an English name typed with the Russian keyboard layout, got %#v", itemNames(items))
+	}
+}
+
 func TestCatalogSearchClearsWithEscape(t *testing.T) {
 	model := Model{
 		screen:        screenCatalog,

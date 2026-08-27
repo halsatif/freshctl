@@ -1425,16 +1425,35 @@ func collectCatalogItems(categories []catalog.Category, path []string, items *[]
 
 func (m Model) filteredFullCatalogItems() []fullCatalogItem {
 	items := m.allCatalogItems()
-	query := strings.TrimSpace(strings.ToLower(m.searchQuery))
+	query := normalizeSearchQuery(m.searchQuery)
 	if query == "" {
 		return items
 	}
 
-	filtered := make([]fullCatalogItem, 0, len(items))
+	type rankedItem struct {
+		item  fullCatalogItem
+		score int
+	}
+
+	queries := searchQueryVariants(query)
+	ranked := make([]rankedItem, 0, len(items))
 	for _, item := range items {
-		if matchesPackageSearch(item, query) {
-			filtered = append(filtered, item)
+		bestScore := 0
+		for _, candidate := range queries {
+			bestScore = max(bestScore, packageSearchScore(item, candidate))
 		}
+		if bestScore > 0 {
+			ranked = append(ranked, rankedItem{item: item, score: bestScore})
+		}
+	}
+
+	sort.SliceStable(ranked, func(i, j int) bool {
+		return ranked[i].score > ranked[j].score
+	})
+
+	filtered := make([]fullCatalogItem, len(ranked))
+	for index, result := range ranked {
+		filtered[index] = result.item
 	}
 	return filtered
 }
@@ -1443,23 +1462,149 @@ func (m Model) searchActive() bool {
 	return m.searchFocused || strings.TrimSpace(m.searchQuery) != ""
 }
 
-func matchesPackageSearch(item fullCatalogItem, query string) bool {
-	if query == "" {
-		return true
-	}
+func normalizeSearchQuery(query string) string {
+	return strings.Join(strings.Fields(strings.ToLower(query)), " ")
+}
 
-	fields := []string{
-		item.Package.Name,
-		item.Package.ID,
-		item.Package.Description,
+func searchQueryVariants(query string) []string {
+	variants := []string{query}
+	converted := normalizeSearchQuery(russianKeyboardToEnglish(query))
+	if converted != "" && converted != query {
+		variants = append(variants, converted)
 	}
-	for _, field := range fields {
-		text := strings.ToLower(field)
-		if strings.Contains(text, query) || strings.Contains(compactSearchText(text), query) || isSubsequence(query, text) {
+	return variants
+}
+
+func russianKeyboardToEnglish(text string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case 'ё':
+			return '`'
+		case 'й':
+			return 'q'
+		case 'ц':
+			return 'w'
+		case 'у':
+			return 'e'
+		case 'к':
+			return 'r'
+		case 'е':
+			return 't'
+		case 'н':
+			return 'y'
+		case 'г':
+			return 'u'
+		case 'ш':
+			return 'i'
+		case 'щ':
+			return 'o'
+		case 'з':
+			return 'p'
+		case 'х':
+			return '['
+		case 'ъ':
+			return ']'
+		case 'ф':
+			return 'a'
+		case 'ы':
+			return 's'
+		case 'в':
+			return 'd'
+		case 'а':
+			return 'f'
+		case 'п':
+			return 'g'
+		case 'р':
+			return 'h'
+		case 'о':
+			return 'j'
+		case 'л':
+			return 'k'
+		case 'д':
+			return 'l'
+		case 'ж':
+			return ';'
+		case 'э':
+			return '\''
+		case 'я':
+			return 'z'
+		case 'ч':
+			return 'x'
+		case 'с':
+			return 'c'
+		case 'м':
+			return 'v'
+		case 'и':
+			return 'b'
+		case 'т':
+			return 'n'
+		case 'ь':
+			return 'm'
+		case 'б':
+			return ','
+		case 'ю':
+			return '.'
+		default:
+			return r
+		}
+	}, text)
+}
+
+func packageSearchScore(item fullCatalogItem, query string) int {
+	name := strings.ToLower(item.Package.Name)
+	id := strings.ToLower(item.Package.ID)
+	description := strings.ToLower(item.Package.Description)
+	path := strings.ToLower(item.Path)
+	compactQuery := compactSearchText(query)
+	compactName := compactSearchText(name)
+	compactID := compactSearchText(id)
+	initials := packageInitials(name)
+
+	switch {
+	case name == query:
+		return 1000
+	case strings.HasPrefix(name, query):
+		return 950
+	case hasWordPrefix(name, query):
+		return 925
+	case compactQuery != "" && compactName == compactQuery:
+		return 920
+	case compactQuery != "" && strings.HasPrefix(compactName, compactQuery):
+		return 900
+	case id == query:
+		return 890
+	case strings.HasPrefix(id, query):
+		return 875
+	case strings.Contains(name, query):
+		return 850
+	case compactQuery != "" && strings.Contains(compactName, compactQuery):
+		return 825
+	case strings.Contains(id, query) || (compactQuery != "" && strings.Contains(compactID, compactQuery)):
+		return 800
+	case initials == compactQuery:
+		return 790
+	case compactQuery != "" && strings.HasPrefix(initials, compactQuery):
+		return 780
+	case strings.Contains(description, query):
+		return 700
+	case strings.Contains(path, query):
+		return 650
+	case compactQuery != "" && isSubsequence(compactQuery, compactName):
+		return 500
+	default:
+		return 0
+	}
+}
+
+func hasWordPrefix(text, query string) bool {
+	for _, word := range strings.FieldsFunc(text, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) {
+		if strings.HasPrefix(word, query) {
 			return true
 		}
 	}
-	return strings.Contains(packageInitials(item.Package.Name), query)
+	return false
 }
 
 func compactSearchText(text string) string {
