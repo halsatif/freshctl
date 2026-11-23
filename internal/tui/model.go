@@ -11,6 +11,7 @@ import (
 	"github.com/halsatif/freshctl/internal/catalog"
 	"github.com/halsatif/freshctl/internal/detection"
 	"github.com/halsatif/freshctl/internal/installer"
+	"github.com/halsatif/freshctl/internal/logfile"
 	presetpkg "github.com/halsatif/freshctl/internal/presets"
 	"github.com/halsatif/freshctl/internal/profiles"
 )
@@ -940,6 +941,7 @@ func (m Model) handleBootstrapEvent(msg bootstrapEventMsg) (tea.Model, tea.Cmd) 
 	event := msg.event
 	switch event.Kind {
 	case installer.BootstrapLog:
+		logfile.Write("chocolatey bootstrap", event.Line)
 		m.bootstrapLog = append(m.bootstrapLog, event.Line)
 	case installer.BootstrapFinished:
 		m.bootstrapRunning = false
@@ -1126,6 +1128,7 @@ func (m *Model) freezeInstallElapsed() {
 }
 
 func (m *Model) appendInstallLog(app catalog.Application, line string) {
+	logfile.Write(app.Name, line)
 	m.installLogs = append(m.installLogs, installLogEntry{
 		ApplicationID:   app.ID,
 		ApplicationName: app.Name,

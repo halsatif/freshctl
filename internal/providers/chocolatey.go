@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/halsatif/freshctl/internal/catalog"
@@ -21,6 +22,7 @@ var ErrInstallSkipped = errors.New("install skipped")
 const (
 	chocolateyExe      = `C:\ProgramData\chocolatey\bin\choco.exe`
 	installTimeout     = 30 * time.Minute
+	heartbeatInterval  = 15 * time.Second
 	defaultBufferLines = 64 * 1024
 )
 
@@ -119,10 +121,37 @@ func (c *Chocolatey) install(ctx context.Context, app catalog.Application, provi
 		return InstallError{App: app, Provider: provider, ExitCode: -1, Err: err}
 	}
 
+	// Heartbeat: --no-progress hides downloads, so say so when choco goes quiet.
+	var lastOutput atomic.Int64
+	lastOutput.Store(time.Now().UnixNano())
+	track := func(line string) {
+		lastOutput.Store(time.Now().UnixNano())
+		if opts.Log != nil {
+			opts.Log(line)
+		}
+	}
+	stopBeat := make(chan struct{})
+	defer close(stopBeat)
+	go func() {
+		ticker := time.NewTicker(heartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopBeat:
+				return
+			case <-ticker.C:
+				quiet := time.Since(time.Unix(0, lastOutput.Load())).Round(time.Second)
+				if quiet >= heartbeatInterval && opts.Log != nil {
+					opts.Log(fmt.Sprintf("[freshctl] still running, no output for %s", quiet))
+				}
+			}
+		}
+	}()
+
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go scanOutput(&wg, stdout, opts.Log)
-	go scanOutput(&wg, stderr, opts.Log)
+	go scanOutput(&wg, stdout, track)
+	go scanOutput(&wg, stderr, track)
 
 	if err := waitCommand(ctx, cmd); err != nil {
 		wg.Wait()
@@ -144,6 +173,9 @@ func installArgs(provider catalog.Provider) []string {
 	args := []string{"install", provider.PackageID, "-y", "--no-progress"}
 	if provider.Metadata.Prerelease {
 		args = append(args, "--pre")
+	}
+	if os.Getenv("FRESHCTL_VERBOSE") != "" {
+		args = append(args, "--verbose", "--debug")
 	}
 	return args
 }
