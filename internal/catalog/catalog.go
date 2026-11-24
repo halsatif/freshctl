@@ -111,7 +111,17 @@ func Default() []Category {
 						InstallerType: InstallerTypeMSI,
 					},
 				),
-				app("Opera", "opera", "browser", "Opera web browser."),
+				withDirectProvider(
+					detect(app("Opera", "opera", "browser", "Opera web browser."), DetectRegistry, "Opera Stable"),
+					DirectInstallerMetadata{
+						Downloads: []DirectDownload{
+							{URL: "https://net.geo.opera.com/opera/stable/windows", Architecture: InstallerArchitectureX64},
+						},
+						Filename:      "OperaSetup.exe",
+						SilentArgs:    []string{"/silent", "/allusers=1"},
+						InstallerType: InstallerTypeExecutable,
+					},
+				),
 				withDirectProvider(
 					detect(app("Opera GX", "opera-gx", "browser", "Opera browser tuned for gaming."), DetectRegistry, "Opera GX Stable"),
 					DirectInstallerMetadata{

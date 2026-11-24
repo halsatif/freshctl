@@ -83,6 +83,7 @@ func TestExpectedApplicationsUseDirectProvider(t *testing.T) {
 		"googlechrome":             InstallerTypeMSI,
 		"firefox":                  InstallerTypeExecutable,
 		"brave":                    InstallerTypeExecutable,
+		"opera":                    InstallerTypeExecutable,
 		"opera-gx":                 InstallerTypeExecutable,
 		"telegram":                 InstallerTypeExecutable,
 		"git":                      InstallerTypeExecutable,

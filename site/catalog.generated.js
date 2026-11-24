@@ -14,7 +14,7 @@ window.FRESHCTL_CATALOG = [
     "packageId": "opera",
     "category": "browser",
     "type": "Application",
-    "source": "Chocolatey",
+    "source": "Direct",
     "verified": true,
     "description": "Opera web browser."
   },
