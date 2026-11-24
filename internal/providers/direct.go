@@ -156,7 +156,10 @@ func (d *Direct) Install(ctx context.Context, app catalog.Application, provider 
 		}
 	}()
 
+	log, stopBeat := withHeartbeat(opts.Log)
+	opts.Log = log
 	err := d.install(installCtx, app, provider, opts)
+	stopBeat()
 	close(done)
 
 	select {
